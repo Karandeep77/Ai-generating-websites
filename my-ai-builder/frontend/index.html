@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Website Builder</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span>My Projects</span>
+        <button class="new-btn" onclick="startNewProject()">+ New</button>
+      </div>
+      <div id="projectsList" class="projects-list">
+        <p class="empty-msg">No projects yet.<br>Generate your first website!</p>
+      </div>
+    </div>
+
+    <!-- MAIN AREA -->
+    <div class="main">
+
+      <!-- LEFT PANEL -->
+      <div class="panel left-panel">
+        <h1>🤖 AI Website Builder</h1>
+        <p class="subtitle">Describe your website and it will be built instantly</p>
+
+        <textarea
+          id="promptInput"
+          placeholder="Example: Make me a restaurant website with a menu, about us section, and contact form."
+          rows="6"
+        ></textarea>
+
+        <div class="buttons">
+          <button id="generateBtn" onclick="generateWebsite()">✨ Generate</button>
+          <button id="modifyBtn"   onclick="modifyWebsite()" disabled>🔧 Modify</button>
+        </div>
+
+        <div id="statusMessage" class="status hidden"></div>
+        <div id="explanation"   class="explanation hidden"></div>
+        <div id="chatHistory"   class="chat-history"></div>
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div class="panel right-panel">
+
+        <!-- HEADER with toggle + download -->
+        <div class="preview-header">
+          <span id="currentProjectName">Live Preview</span>
+
+          <div class="header-actions">
+            <!-- Toggle buttons -->
+            <div class="view-toggle">
+              <button class="toggle-btn active" id="previewToggle" onclick="switchView('preview')">
+                👁 Preview
+              </button>
+              <button class="toggle-btn" id="codeToggle" onclick="switchView('code')" disabled>
+                &lt;/&gt; Code
+              </button>
+            </div>
+            <button id="downloadBtn" onclick="downloadCode()" disabled>⬇️ Download</button>
+          </div>
+        </div>
+
+        <!-- PREVIEW VIEW -->
+        <div id="previewView">
+          <iframe id="previewFrame" title="Website Preview"></iframe>
+        </div>
+
+        <!-- CODE VIEW (hidden by default) -->
+        <div id="codeView" class="hidden">
+
+          <!-- Code tabs -->
+          <div class="code-tabs">
+            <button class="code-tab active" onclick="switchCodeTab('html')">HTML</button>
+            <button class="code-tab"        onclick="switchCodeTab('css')">CSS</button>
+            <button class="code-tab"        onclick="switchCodeTab('js')">JavaScript</button>
+            <button class="copy-btn"        onclick="copyCode()">📋 Copy</button>
+          </div>
+
+          <!-- Code display area -->
+          <div class="code-content">
+            <pre id="codeDisplay"></pre>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
