@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Website Builder — Login</title>
+  <link rel="stylesheet" href="login.css"/>
+</head>
+<body>
+  <div class="page">
+
+    <div class="card">
+      <!-- Logo -->
+      <div class="logo">🤖</div>
+      <h1>AI Website Builder</h1>
+      <p class="tagline">Build websites with a single sentence</p>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" id="loginTab"    onclick="switchTab('login')">Login</button>
+        <button class="tab"        id="registerTab" onclick="switchTab('register')">Register</button>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <div id="loginForm">
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="loginEmail" placeholder="you@example.com"/>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="loginPassword" placeholder="Your password"/>
+        </div>
+        <div id="loginError" class="error hidden"></div>
+        <button class="btn-primary" onclick="doLogin()">Login →</button>
+        <p class="hint">Admin? Use admin@admin.com / admin123</p>
+      </div>
+
+      <!-- REGISTER FORM -->
+      <div id="registerForm" class="hidden">
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="regEmail" placeholder="you@example.com"/>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="regPassword" placeholder="Min 6 characters"/>
+        </div>
+        <div class="field">
+          <label>Confirm Password</label>
+          <input type="password" id="regConfirm" placeholder="Same password again"/>
+        </div>
+        <div id="registerError" class="error hidden"></div>
+        <button class="btn-primary" onclick="doRegister()">Create Account →</button>
+      </div>
+    </div>
+
+  </div>
+  <script src="login.js"></script>
+</body>
+</html>
