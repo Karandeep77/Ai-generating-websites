@@ -10,28 +10,45 @@
 
   <div class="app">
 
-    <!-- SIDEBAR -->
+    <!-- ── SIDEBAR ── -->
     <div class="sidebar">
-      <div class="sidebar-header">
-        <span>My Projects</span>
-        <button class="new-btn" onclick="startNewProject()">+ New</button>
+
+      <!-- User info at top -->
+      <div class="sidebar-user">
+        <div class="user-avatar">🤖</div>
+        <div class="user-info">
+          <span id="userEmail" class="user-email">Loading...</span>
+          <span id="userRole"  class="user-role">user</span>
+        </div>
+        <button class="exit-btn" onclick="logout()" title="Logout">⏻</button>
       </div>
+
+      <!-- New project button -->
+      <div class="sidebar-actions">
+        <button class="new-project-btn" onclick="startNewProject()">+ New Project</button>
+      </div>
+
+      <!-- Projects label -->
+      <div class="sidebar-label">MY PROJECTS</div>
+
+      <!-- Projects list -->
       <div id="projectsList" class="projects-list">
-        <p class="empty-msg">No projects yet.<br>Generate your first website!</p>
+        <p class="empty-msg">No projects yet.<br/>Generate your first website!</p>
       </div>
+
     </div>
 
-    <!-- MAIN AREA -->
+    <!-- ── MAIN AREA ── -->
     <div class="main">
 
-      <!-- LEFT PANEL -->
+      <!-- LEFT PANEL: prompt -->
       <div class="panel left-panel">
         <h1>🤖 AI Website Builder</h1>
         <p class="subtitle">Describe your website and it will be built instantly</p>
 
         <textarea
           id="promptInput"
-          placeholder="Example: Make me a restaurant website with a menu, about us section, and contact form."
+          placeholder="Example: Make me a restaurant website with a menu, about section and contact form."
           rows="6"
         ></textarea>
 
@@ -45,48 +62,36 @@
         <div id="chatHistory"   class="chat-history"></div>
       </div>
 
-      <!-- RIGHT PANEL -->
+      <!-- RIGHT PANEL: preview + code -->
       <div class="panel right-panel">
 
-        <!-- HEADER with toggle + download -->
         <div class="preview-header">
           <span id="currentProjectName">Live Preview</span>
-
           <div class="header-actions">
-            <!-- Toggle buttons -->
             <div class="view-toggle">
-              <button class="toggle-btn active" id="previewToggle" onclick="switchView('preview')">
-                👁 Preview
-              </button>
-              <button class="toggle-btn" id="codeToggle" onclick="switchView('code')" disabled>
-                &lt;/&gt; Code
-              </button>
+              <button class="toggle-btn active" id="previewToggle" onclick="switchView('preview')">👁 Preview</button>
+              <button class="toggle-btn" id="codeToggle" onclick="switchView('code')" disabled>&lt;/&gt; Code</button>
             </div>
             <button id="downloadBtn" onclick="downloadCode()" disabled>⬇️ Download</button>
           </div>
         </div>
 
-        <!-- PREVIEW VIEW -->
-        <div id="previewView">
+        <!-- Preview -->
+        <div id="previewView" style="flex:1;display:flex;flex-direction:column;">
           <iframe id="previewFrame" title="Website Preview"></iframe>
         </div>
 
-        <!-- CODE VIEW (hidden by default) -->
-        <div id="codeView" class="hidden">
-
-          <!-- Code tabs -->
+        <!-- Code view -->
+        <div id="codeView" class="hidden" style="flex:1;display:flex;flex-direction:column;background:#0d1117;overflow:hidden;">
           <div class="code-tabs">
             <button class="code-tab active" onclick="switchCodeTab('html')">HTML</button>
             <button class="code-tab"        onclick="switchCodeTab('css')">CSS</button>
             <button class="code-tab"        onclick="switchCodeTab('js')">JavaScript</button>
             <button class="copy-btn"        onclick="copyCode()">📋 Copy</button>
           </div>
-
-          <!-- Code display area -->
           <div class="code-content">
             <pre id="codeDisplay"></pre>
           </div>
-
         </div>
 
       </div>

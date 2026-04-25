@@ -1,6 +1,27 @@
-// app.js - fixed preview and project loading
+// app.js — complete file with auth on every fetch call
+
+// ── AUTH GUARD ────────────────────────────────────────────────────────
+(function checkAuth() {
+  if (!localStorage.getItem("token")) {
+    window.location.href = "/login.html";
+  }
+})();
 
 const BACKEND_URL = "";
+
+// ── AUTH HEADERS — sent with every request ────────────────────────────
+function authHeaders() {
+  return {
+    "Content-Type":  "application/json",
+    "Authorization": `Bearer ${localStorage.getItem("token")}`
+  };
+}
+
+// ── LOGOUT ────────────────────────────────────────────────────────────
+function logout() {
+  localStorage.clear();
+  window.location.href = "/login.html";
+}
 
 // ── STATE ─────────────────────────────────────────────────────────────
 let currentHTML      = null;
@@ -11,40 +32,61 @@ let parsedCode       = { html: "", css: "", js: "" };
 
 // ── ON PAGE LOAD ──────────────────────────────────────────────────────
 window.addEventListener("load", () => {
+  const email = localStorage.getItem("email");
+  const role  = localStorage.getItem("role");
+
+  const emailEl = document.getElementById("userEmail");
+  const roleEl  = document.getElementById("userRole");
+  if (emailEl && email) emailEl.textContent = email;
+  if (roleEl  && role)  roleEl.textContent  = role === "admin" ? "⭐ Admin" : "User";
+
   loadAllProjects();
 });
 
 // ── LOAD ALL PROJECTS ─────────────────────────────────────────────────
 async function loadAllProjects() {
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/projects`);
+    const res  = await fetch(`${BACKEND_URL}/api/projects`, {
+      headers: authHeaders()
+    });
+
+    // If token expired or invalid, go back to login
+    if (res.status === 401) {
+      logout();
+      return;
+    }
+
     const data = await res.json();
     if (data.success) renderProjectsList(data.projects);
+
   } catch (err) {
     console.error("Could not load projects:", err.message);
   }
 }
 
-// ── RENDER SIDEBAR ────────────────────────────────────────────────────
+// ── RENDER SIDEBAR LIST ───────────────────────────────────────────────
 function renderProjectsList(projects) {
   const container = document.getElementById("projectsList");
-  if (!projects.length) {
-    container.innerHTML = `<p class="empty-msg">No projects yet.<br>Generate your first website!</p>`;
+
+  if (!projects || projects.length === 0) {
+    container.innerHTML = `<p class="empty-msg">No projects yet.<br/>Generate your first website!</p>`;
     return;
   }
+
   container.innerHTML = projects.map(p => `
     <div class="project-card ${p.id === currentProjectId ? "active" : ""}"
          id="project-card-${p.id}"
          onclick="loadProject(${p.id})">
-      <div class="project-card-name"
-           contenteditable="true" spellcheck="false"
-           onclick="event.stopPropagation()"
-           onblur="renameProject(${p.id}, this)"
-           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"
-           title="Click to rename">${escapeHtml(p.name)}</div>
+      <span class="project-card-name"
+            contenteditable="true"
+            spellcheck="false"
+            onclick="event.stopPropagation()"
+            onblur="renameProject(${p.id}, this)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"
+            title="Click to rename">${escapeHtml(p.name)}</span>
       <div class="project-card-date">${formatDate(p.updated_at)}</div>
       <button class="project-card-delete"
-              onclick="event.stopPropagation();deleteProject(${p.id})"
+              onclick="event.stopPropagation(); deleteProject(${p.id})"
               title="Delete">✕</button>
     </div>
   `).join("");
@@ -53,26 +95,28 @@ function renderProjectsList(projects) {
 // ── LOAD ONE PROJECT ──────────────────────────────────────────────────
 async function loadProject(id) {
   try {
-    showStatus("Loading project...", "loading");
+    showStatus("Loading...", "loading");
 
-    const res  = await fetch(`${BACKEND_URL}/api/projects/${id}`);
+    const res  = await fetch(`${BACKEND_URL}/api/projects/${id}`, {
+      headers: authHeaders()
+    });
+
+    if (res.status === 401) { logout(); return; }
+
     const data = await res.json();
-    if (!data.success) throw new Error("Not found");
+    if (!data.success) throw new Error("Project not found");
 
-    const p      = data.project;
+    const p          = data.project;
     currentHTML      = p.html;
     currentProjectId = p.id;
+    parsedCode       = extractCodeParts(currentHTML);
 
-    // ── KEY FIX: always display the RAW html, never a modified version ──
     displayPreview(currentHTML);
 
-    // Parse for code tabs (only used when user clicks </> Code)
-    parsedCode = extractCodeParts(currentHTML);
-
     document.getElementById("currentProjectName").textContent = p.name;
-    document.getElementById("modifyBtn").disabled   = false;
-    document.getElementById("downloadBtn").disabled = false;
-    document.getElementById("codeToggle").disabled  = false;
+    document.getElementById("modifyBtn").disabled             = false;
+    document.getElementById("downloadBtn").disabled           = false;
+    document.getElementById("codeToggle").disabled            = false;
 
     switchView("preview");
 
@@ -84,8 +128,8 @@ async function loadProject(id) {
     showExplanation(`Loaded: "${p.name}"`);
 
   } catch (err) {
-    console.error("Load project error:", err);
-    showStatus("❌ Could not load project: " + err.message, "error");
+    console.error("Load error:", err);
+    showStatus("❌ Could not load project", "error");
   }
 }
 
@@ -95,14 +139,12 @@ function startNewProject() {
   currentProjectId = null;
   parsedCode       = { html: "", css: "", js: "" };
 
-  // Clean up blob URL if exists
   const iframe = document.getElementById("previewFrame");
   if (iframe._blobUrl) {
     URL.revokeObjectURL(iframe._blobUrl);
     iframe._blobUrl = null;
   }
-  iframe.src    = "";
-  iframe.srcdoc = "";
+  iframe.src = "about:blank";
 
   document.getElementById("currentProjectName").textContent = "Live Preview";
   document.getElementById("promptInput").value              = "";
@@ -110,8 +152,8 @@ function startNewProject() {
   document.getElementById("downloadBtn").disabled           = true;
   document.getElementById("codeToggle").disabled            = true;
   document.getElementById("chatHistory").innerHTML          = "";
-  document.getElementById("explanation").classList.add("hidden");
   document.getElementById("codeDisplay").innerHTML          = "";
+  document.getElementById("explanation").classList.add("hidden");
 
   switchView("preview");
   hideStatus();
@@ -122,29 +164,32 @@ function startNewProject() {
 // ── GENERATE WEBSITE ──────────────────────────────────────────────────
 async function generateWebsite() {
   const prompt = document.getElementById("promptInput").value.trim();
-  if (!prompt) { showStatus("Please enter a description first!", "error"); return; }
+  if (!prompt) {
+    showStatus("Please enter a description first!", "error");
+    return;
+  }
 
   showStatus("⏳ Generating your website... (10-20 seconds)", "loading");
   disableButtons(true);
 
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/generate`, {
+    const res = await fetch(`${BACKEND_URL}/api/generate`, {
       method:  "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(),
       body:    JSON.stringify({ prompt }),
     });
+
+    // Token expired
+    if (res.status === 401) { logout(); return; }
+
     const data = await res.json();
     if (!res.ok) throw new Error(data.details || data.error || "Something went wrong");
 
     currentHTML      = data.html;
     currentProjectId = data.projectId;
+    parsedCode       = extractCodeParts(currentHTML);
 
-    // ── Always show raw HTML in preview ──
     displayPreview(currentHTML);
-
-    // Parse for code tabs
-    parsedCode = extractCodeParts(currentHTML);
-
     showExplanation(data.explanation);
     addToHistory(prompt, "Generated");
 
@@ -157,6 +202,8 @@ async function generateWebsite() {
     document.getElementById("currentProjectName").textContent = name;
 
     await loadAllProjects();
+
+    // Highlight the newly saved project
     document.querySelectorAll(".project-card").forEach(c => c.classList.remove("active"));
     const card = document.getElementById(`project-card-${currentProjectId}`);
     if (card) card.classList.add("active");
@@ -164,6 +211,7 @@ async function generateWebsite() {
     hideStatus();
 
   } catch (err) {
+    console.error("Generate error:", err);
     showStatus("❌ Error: " + err.message, "error");
   } finally {
     disableButtons(false);
@@ -180,25 +228,25 @@ async function modifyWebsite() {
   disableButtons(true);
 
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/generate`, {
+    const res = await fetch(`${BACKEND_URL}/api/generate`, {
       method:  "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(),
       body:    JSON.stringify({
         prompt,
         existingCode: currentHTML,
         projectId:    currentProjectId,
       }),
     });
+
+    if (res.status === 401) { logout(); return; }
+
     const data = await res.json();
     if (!res.ok) throw new Error(data.details || data.error || "Something went wrong");
 
     currentHTML = data.html;
     parsedCode  = extractCodeParts(currentHTML);
 
-    // ── Always show raw HTML in preview ──
     displayPreview(currentHTML);
-
-    // If user is on code view, refresh it too
     if (currentView === "code") showCodeTab(currentCodeTab);
 
     showExplanation(data.explanation);
@@ -209,39 +257,31 @@ async function modifyWebsite() {
     hideStatus();
 
   } catch (err) {
+    console.error("Modify error:", err);
     showStatus("❌ Error: " + err.message, "error");
   } finally {
     disableButtons(false);
   }
 }
 
-// displayPreview - fixed using blob URL instead of srcdoc
-// Blob URLs are unique every single time so browser never gets stuck
-
+// ── DISPLAY PREVIEW ───────────────────────────────────────────────────
 function displayPreview(html) {
   const iframe = document.getElementById("previewFrame");
 
-  // Revoke previous blob URL to free memory
   if (iframe._blobUrl) {
     URL.revokeObjectURL(iframe._blobUrl);
     iframe._blobUrl = null;
   }
 
-  // Create a fresh blob URL every time — browser treats it as a new page
   const blob    = new Blob([html], { type: "text/html" });
   const blobUrl = URL.createObjectURL(blob);
-
-  // Store it on the iframe element so we can revoke it next time
   iframe._blobUrl = blobUrl;
 
-  // Reset iframe completely before loading
-  iframe.src = "";
-  setTimeout(() => {
-    iframe.src = blobUrl;
-  }, 30);
+  iframe.src = "about:blank";
+  setTimeout(() => { iframe.src = blobUrl; }, 30);
 }
 
-// ── VIEW TOGGLE (Preview ↔ Code) ──────────────────────────────────────
+// ── VIEW TOGGLE ───────────────────────────────────────────────────────
 function switchView(view) {
   currentView = view;
 
@@ -268,9 +308,11 @@ function switchView(view) {
 function switchCodeTab(tab) {
   currentCodeTab = tab;
   document.querySelectorAll(".code-tab").forEach(btn => {
-    btn.classList.toggle(
-      "active",
-      btn.textContent.trim().toLowerCase().startsWith(tab === "js" ? "java" : tab)
+    const label = btn.textContent.trim().toLowerCase();
+    btn.classList.toggle("active",
+      (tab === "html" && label === "html") ||
+      (tab === "css"  && label === "css")  ||
+      (tab === "js"   && label === "javascript")
     );
   });
   showCodeTab(tab);
@@ -278,42 +320,28 @@ function switchCodeTab(tab) {
 
 function showCodeTab(tab) {
   const display = document.getElementById("codeDisplay");
-  const code    = parsedCode[tab] || (tab === "js" ? "// No JavaScript found" : tab === "css" ? "/* No CSS found */" : "");
+  const code    = parsedCode[tab] ||
+    (tab === "js" ? "// No JavaScript found" :
+     tab === "css" ? "/* No CSS found */" : "");
   display.innerHTML = highlightCode(code, tab);
 }
 
-// ── EXTRACT HTML/CSS/JS FROM FULL HTML ───────────────────────────────
-// IMPORTANT: this is ONLY for the Code tab display
-// The preview ALWAYS uses the original unmodified HTML
+// ── EXTRACT CODE PARTS ────────────────────────────────────────────────
 function extractCodeParts(fullHtml) {
   if (!fullHtml) return { html: "", css: "", js: "" };
 
-  // Extract CSS — get content inside ALL <style> tags
-  let css = "";
-  const cssMatches = fullHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
-  if (cssMatches) {
-    css = cssMatches
-      .map(block => block.replace(/<style[^>]*>/i, "").replace(/<\/style>/i, ""))
-      .join("\n\n")
-      .trim();
-  }
+  const cssMatches = fullHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || [];
+  const css = cssMatches
+    .map(b => b.replace(/<style[^>]*>/i, "").replace(/<\/style>/i, ""))
+    .join("\n\n").trim();
 
-  // Extract JS — get content inside ALL <script> tags
-  let js = "";
-  const jsMatches = fullHtml.match(/<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/gi);
-  if (jsMatches) {
-    js = jsMatches
-      .map(block => block.replace(/<script[^>]*>/i, "").replace(/<\/script>/i, ""))
-      .join("\n\n")
-      .trim();
-  }
-
-  // For HTML tab — show the full original so user sees the complete structure
-  // Just label where CSS and JS are
-  const html = fullHtml.trim();
+  const jsMatches = fullHtml.match(/<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/gi) || [];
+  const js = jsMatches
+    .map(b => b.replace(/<script[^>]*>/i, "").replace(/<\/script>/i, ""))
+    .join("\n\n").trim();
 
   return {
-    html: html || "<!-- No HTML found -->",
+    html: fullHtml.trim() || "<!-- No HTML found -->",
     css:  css  || "/* No CSS found */",
     js:   js   || "// No JavaScript found",
   };
@@ -321,28 +349,26 @@ function extractCodeParts(fullHtml) {
 
 // ── SYNTAX HIGHLIGHTER ────────────────────────────────────────────────
 function highlightCode(code, type) {
-  let escaped = code
+  let e = code
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
   if (type === "html") {
-    return escaped
+    return e
       .replace(/(&lt;\/?)([\w]+)/g, '$1<span class="token-tag">$2</span>')
-      .replace(/([\w-]+=)(".*?")/g, '<span class="token-attr">$1</span><span class="token-string">$2</span>')
+      .replace(/([\w-]+=)(".*?")/g,  '<span class="token-attr">$1</span><span class="token-string">$2</span>')
       .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="token-comment">$1</span>');
   }
-
   if (type === "css") {
-    return escaped
+    return e
       .replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="token-comment">$1</span>')
-      .replace(/([.#]?[\w-]+)\s*\{/g, '<span class="token-tag">$1</span> {')
+      .replace(/([.#]?[\w-]+)\s*\{/g,  '<span class="token-tag">$1</span> {')
       .replace(/([\w-]+)(\s*:)(\s*)([^;}\n]+)/g,
         '<span class="token-property">$1</span>$2$3<span class="token-value">$4</span>');
   }
-
   if (type === "js") {
-    return escaped
+    return e
       .replace(/(\/\/[^\n]*)/g, '<span class="token-comment">$1</span>')
       .replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="token-comment">$1</span>')
       .replace(/\b(const|let|var|function|return|if|else|for|while|class|new|this|async|await|import|export|default|true|false|null|undefined)\b/g,
@@ -351,8 +377,7 @@ function highlightCode(code, type) {
       .replace(/\b(\d+\.?\d*)\b/g, '<span class="token-number">$1</span>')
       .replace(/(".*?"|'.*?'|`[\s\S]*?`)/g, '<span class="token-string">$1</span>');
   }
-
-  return escaped;
+  return e;
 }
 
 // ── COPY CODE ─────────────────────────────────────────────────────────
@@ -381,14 +406,15 @@ function downloadCode() {
   URL.revokeObjectURL(url);
 }
 
-// ── RENAME ────────────────────────────────────────────────────────────
+// ── RENAME PROJECT ────────────────────────────────────────────────────
 async function renameProject(id, element) {
   const newName = element.textContent.trim();
   if (!newName) { element.textContent = "Untitled"; return; }
+
   try {
     await fetch(`${BACKEND_URL}/api/projects/${id}`, {
       method:  "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(),
       body:    JSON.stringify({ name: newName }),
     });
     if (id === currentProjectId) {
@@ -399,11 +425,15 @@ async function renameProject(id, element) {
   }
 }
 
-// ── DELETE ────────────────────────────────────────────────────────────
+// ── DELETE PROJECT ────────────────────────────────────────────────────
 async function deleteProject(id) {
   if (!confirm("Delete this project? This cannot be undone.")) return;
+
   try {
-    await fetch(`${BACKEND_URL}/api/projects/${id}`, { method: "DELETE" });
+    await fetch(`${BACKEND_URL}/api/projects/${id}`, {
+      method:  "DELETE",
+      headers: authHeaders(),
+    });
     if (id === currentProjectId) startNewProject();
     await loadAllProjects();
   } catch (err) {
@@ -418,18 +448,22 @@ function showStatus(message, type) {
   el.className   = `status ${type}`;
   el.classList.remove("hidden");
 }
+
 function hideStatus() {
   document.getElementById("statusMessage").classList.add("hidden");
 }
+
 function showExplanation(text) {
   const el = document.getElementById("explanation");
   el.textContent = "💡 " + text;
   el.classList.remove("hidden");
 }
+
 function disableButtons(state) {
   document.getElementById("generateBtn").disabled = state;
   if (state) document.getElementById("modifyBtn").disabled = true;
 }
+
 function addToHistory(prompt, action) {
   const container = document.getElementById("chatHistory");
   const item      = document.createElement("div");
@@ -437,6 +471,7 @@ function addToHistory(prompt, action) {
   item.innerHTML  = `<span>${action}:</span> ${escapeHtml(prompt)}`;
   container.prepend(item);
 }
+
 function escapeHtml(text) {
   return String(text)
     .replace(/&/g,  "&amp;")
@@ -444,12 +479,15 @@ function escapeHtml(text) {
     .replace(/>/g,  "&gt;")
     .replace(/"/g,  "&quot;");
 }
+
 function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString("en-IN", {
     day: "numeric", month: "short",
     hour: "2-digit", minute: "2-digit",
   });
 }
+
+// Ctrl+Enter to generate
 document.addEventListener("keydown", e => {
   if (e.ctrlKey && e.key === "Enter") generateWebsite();
 });

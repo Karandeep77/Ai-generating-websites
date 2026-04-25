@@ -1,0 +1,90 @@
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+
+body {
+  background: #0f0f1a;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.card {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 20px;
+  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+}
+
+.logo { font-size: 48px; margin-bottom: 12px; }
+
+h1 { color: #a78bfa; font-size: 22px; margin-bottom: 6px; }
+
+.tagline { color: #666; font-size: 13px; margin-bottom: 28px; }
+
+/* Tabs */
+.tabs {
+  display: flex;
+  background: #0f0f1a;
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 28px;
+  gap: 4px;
+}
+.tab {
+  flex: 1; padding: 10px; border: none; border-radius: 8px;
+  cursor: pointer; font-size: 14px; font-weight: 600;
+  background: transparent; color: #666; transition: all 0.2s;
+}
+.tab.active { background: #a78bfa; color: #0f0f1a; }
+.tab:not(.active):hover { color: #a78bfa; }
+
+/* Fields */
+.field { margin-bottom: 16px; text-align: left; }
+
+label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: #888; margin-bottom: 6px; text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+input {
+  width: 100%; padding: 12px 14px;
+  background: #0f0f1a; border: 1px solid #2a2a4a;
+  border-radius: 10px; color: #e0e0e0; font-size: 14px;
+  outline: none; transition: border 0.2s;
+}
+input:focus { border-color: #a78bfa; }
+input::placeholder { color: #444; }
+
+/* Button */
+.btn-primary {
+  width: 100%; padding: 14px; margin-top: 8px;
+  background: #a78bfa; color: #0f0f1a;
+  border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-primary:hover   { opacity: 0.85; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Error */
+.error {
+  background: #2d1515; color: #f87171;
+  border: 1px solid #5a2020; border-radius: 8px;
+  padding: 10px 12px; font-size: 13px; margin-bottom: 12px;
+  text-align: left;
+}
+.hidden { display: none; }
+
+.hint { color: #444; font-size: 12px; margin-top: 16px; }
