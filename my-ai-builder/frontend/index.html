@@ -1,103 +1,352 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AI Website Builder</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="theme.css"/>
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    .app { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+
+    .sidebar {
+      width: 256px; min-width: 256px; background: var(--bg-surface);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      height: 100vh; overflow: hidden;
+    }
+    .sidebar-logo {
+      display: flex; align-items: center; gap: 10px;
+      padding: 18px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .sidebar-logo-icon {
+      width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--blue-mid);
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+      flex-shrink: 0; box-shadow: 0 0 12px rgba(37,99,235,0.4);
+    }
+    .sidebar-logo-text { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+
+    .sidebar-user {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .user-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue-deep), #4f46e5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .user-meta { flex: 1; min-width: 0; }
+    .user-email { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-plan  { font-size: 10px; color: var(--blue-bright); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 1px; }
+    .logout-btn {
+      background: none; border: 1px solid var(--border-strong); color: var(--red);
+      border-radius: var(--r-sm); padding: 5px 8px; cursor: pointer; font-size: 13px;
+      flex-shrink: 0; transition: all 0.2s;
+    }
+    .logout-btn:hover { background: var(--red-bg); }
+
+    .sidebar-actions {
+      padding: 12px; border-bottom: 1px solid var(--border);
+      flex-shrink: 0; display: flex; gap: 8px;
+    }
+    .new-btn {
+      flex: 1; padding: 10px 12px; background: var(--blue-mid); color: #fff; border: none;
+      border-radius: var(--r-md); font-family: var(--font-ui); font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.18s; box-shadow: 0 0 16px rgba(37,99,235,0.3);
+    }
+    .new-btn:hover { background: var(--blue-bright); transform: translateY(-1px); }
+    .pricing-icon-btn {
+      padding: 10px 12px; background: var(--bg-elevated); border: 1px solid var(--border-strong);
+      color: var(--text-secondary); border-radius: var(--r-md); font-size: 15px; cursor: pointer;
+      transition: all 0.18s; flex-shrink: 0;
+    }
+    .pricing-icon-btn:hover { border-color: var(--blue-border); color: var(--blue-bright); background: var(--blue-glow); }
+
+    .sidebar-tabs {
+      display: flex; padding: 8px 8px 0; gap: 4px; flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-tab {
+      flex: 1; padding: 8px 4px; border: none; background: transparent;
+      color: var(--text-dim); font-family: var(--font-ui); font-size: 11px; font-weight: 600;
+      cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; text-align: center;
+    }
+    .sidebar-tab.active { color: var(--blue-bright); border-bottom-color: var(--blue-bright); }
+    .sidebar-tab:hover:not(.active) { color: var(--text-secondary); }
+
+    .sidebar-section-label {
+      padding: 8px 16px 4px; font-size: 10px; font-weight: 700;
+      color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0;
+    }
+    .projects-list {
+      flex: 1; overflow-y: auto; padding: 4px 8px 12px;
+      display: flex; flex-direction: column; gap: 3px; min-height: 0;
+    }
+    .empty-msg { text-align: center; padding: 32px 16px; font-size: 13px; color: var(--text-dim); line-height: 1.8; }
+    .empty-msg-icon { font-size: 28px; margin-bottom: 10px; }
+
+    .project-card {
+      border-radius: var(--r-md); padding: 10px 12px; cursor: pointer;
+      position: relative; border: 1px solid transparent; transition: all 0.15s;
+    }
+    .project-card:hover { background: var(--bg-elevated); border-color: var(--border-strong); }
+    .project-card.active { background: var(--blue-glow); border-color: var(--blue-border); }
+    .project-card-name {
+      font-size: 12px; font-weight: 500; color: var(--text-primary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      display: block; outline: none; margin-bottom: 3px;
+    }
+    .project-card-name:focus { white-space: normal; border-bottom: 1px dashed var(--blue-border); }
+    .project-card-date { font-size: 11px; color: var(--text-dim); }
+    .project-card-deployed { display: inline-block; font-size: 10px; color: var(--green); background: var(--green-bg); border-radius: 4px; padding: 1px 6px; margin-top: 3px; }
+    .project-card-del {
+      position: absolute; top: 8px; right: 8px; background: none; border: none;
+      color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 2px 5px;
+      border-radius: var(--r-sm); opacity: 0; transition: all 0.15s;
+    }
+    .project-card:hover .project-card-del { opacity: 1; }
+    .project-card-del:hover { background: var(--red-bg); color: var(--red); }
+
+    .deploy-list {
+      flex: 1; overflow-y: auto; padding: 4px 8px 12px;
+      display: flex; flex-direction: column; gap: 6px; min-height: 0;
+    }
+    .deploy-card {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 10px 12px;
+    }
+    .deploy-card-name { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+    .deploy-card-url {
+      font-size: 11px; color: var(--blue-bright); text-decoration: none;
+      display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px;
+    }
+    .deploy-card-url:hover { text-decoration: underline; }
+    .deploy-card-date { font-size: 10px; color: var(--text-dim); }
+
+    .main { flex: 1; display: flex; height: 100vh; overflow: hidden; min-width: 0; }
+
+    .left-panel {
+      width: 340px; min-width: 340px; background: var(--bg-base);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; height: 100vh; overflow-y: auto;
+    }
+    .left-panel-header { padding: 20px 20px 0; flex-shrink: 0; }
+    .left-panel-title { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; }
+    .left-panel-sub   { font-size: 12px; color: var(--text-dim); }
+    .prompt-area { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+
+    textarea {
+      width: 100%; min-height: 130px; background: var(--bg-card);
+      border: 1px solid var(--border-strong); border-radius: var(--r-lg);
+      color: var(--text-primary); font-family: var(--font-ui); font-size: 13px;
+      line-height: 1.6; padding: 14px; resize: vertical; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    textarea:focus { border-color: var(--blue-mid); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+    textarea::placeholder { color: var(--text-dim); }
+
+    .action-row { display: flex; gap: 8px; }
+    #generateBtn {
+      flex: 1; padding: 12px; background: var(--blue-mid); color: #fff; border: none;
+      border-radius: var(--r-md); font-family: var(--font-ui); font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all 0.18s; box-shadow: 0 0 20px rgba(37,99,235,0.35);
+    }
+    #generateBtn:not(:disabled):hover { background: var(--blue-bright); transform: translateY(-1px); }
+    #generateBtn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    #modifyBtn {
+      flex: 1; padding: 12px; background: var(--bg-elevated); color: var(--blue-bright);
+      border: 1px solid var(--blue-border); border-radius: var(--r-md);
+      font-family: var(--font-ui); font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.18s;
+    }
+    #modifyBtn:not(:disabled):hover { background: var(--blue-glow); }
+    #modifyBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    #deployBtn {
+      width: 100%; padding: 11px; background: var(--green-bg); color: var(--green);
+      border: 1px solid rgba(16,185,129,0.3); border-radius: var(--r-md);
+      font-family: var(--font-ui); font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    #deployBtn:not(:disabled):hover { background: rgba(16,185,129,0.2); transform: translateY(-1px); }
+    #deployBtn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+    #deployedUrlCard {
+      background: var(--green-bg); border: 1px solid rgba(16,185,129,0.3);
+      border-radius: var(--r-md); padding: 12px 14px;
+    }
+    .deploy-label { font-size: 10px; font-weight: 700; color: var(--green); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    #deployedUrlLink { font-size: 12px; color: var(--green); text-decoration: none; display: block; word-break: break-all; }
+    #deployedUrlLink:hover { text-decoration: underline; }
+    .copy-url-btn {
+      margin-top: 8px; padding: 5px 12px; background: var(--green); color: #fff; border: none;
+      border-radius: var(--r-sm); font-family: var(--font-ui); font-size: 11px; font-weight: 700;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .copy-url-btn:hover { opacity: 0.85; }
+
+    .status { border-radius: var(--r-md); padding: 10px 14px; font-size: 12px; font-weight: 500; text-align: center; }
+    .status.loading { background: rgba(59,130,246,0.08); color: var(--blue-bright); border: 1px solid var(--blue-border); }
+    .status.error   { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+    .hidden { display: none !important; }
+
+    .explanation {
+      background: var(--bg-card); border: 1px solid var(--border-strong);
+      border-left: 3px solid var(--blue-mid); border-radius: var(--r-md);
+      padding: 10px 14px; font-size: 12px; color: var(--text-secondary); line-height: 1.6;
+    }
+    .chat-history { display: flex; flex-direction: column; gap: 6px; }
+    .chat-item {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 8px 12px; font-size: 11px; color: var(--text-secondary); line-height: 1.5;
+    }
+    .chat-item-label { font-weight: 700; color: var(--blue-bright); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+
+    .right-panel {
+      flex: 1; display: flex; flex-direction: column;
+      height: 100vh; overflow: hidden; min-width: 0; background: var(--bg-base);
+    }
+    .preview-header {
+      background: var(--bg-surface); border-bottom: 1px solid var(--border);
+      padding: 0 16px; display: flex; justify-content: space-between; align-items: center;
+      height: 48px; flex-shrink: 0;
+    }
+    .preview-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+    .view-toggle {
+      display: flex; background: var(--bg-card);
+      border: 1px solid var(--border-strong); border-radius: var(--r-md); overflow: hidden;
+    }
+    .toggle-btn {
+      padding: 7px 16px; border: none; background: transparent; color: var(--text-dim);
+      font-family: var(--font-ui); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    .toggle-btn.active { background: var(--blue-mid); color: #fff; }
+    .toggle-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .toggle-btn:not(.active):not(:disabled):hover { color: var(--text-primary); background: var(--bg-elevated); }
+    #downloadBtn {
+      padding: 7px 14px; background: var(--bg-elevated); color: var(--text-secondary);
+      border: 1px solid var(--border-strong); border-radius: var(--r-md);
+      font-family: var(--font-ui); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    #downloadBtn:not(:disabled):hover { border-color: var(--blue-border); color: var(--blue-bright); background: var(--blue-glow); }
+    #downloadBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    #previewView { flex: 1; display: flex; flex-direction: column; }
+    iframe { flex: 1; border: none; width: 100%; height: 100%; display: block; background: #fff; }
+    #codeView { flex: 1; display: flex; flex-direction: column; background: #0a0e1a; overflow: hidden; }
+    .code-tabs {
+      display: flex; align-items: center; gap: 4px; padding: 8px 12px;
+      background: var(--bg-surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .code-tab {
+      padding: 6px 14px; border-radius: var(--r-sm); background: transparent; color: var(--text-dim);
+      border: 1px solid transparent; font-family: var(--font-ui); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    .code-tab.active { background: var(--blue-glow); color: var(--blue-bright); border-color: var(--blue-border); }
+    .code-tab:not(.active):hover { color: var(--text-secondary); }
+    .copy-btn {
+      margin-left: auto; padding: 6px 14px; background: var(--bg-elevated);
+      color: var(--text-secondary); border: 1px solid var(--border-strong);
+      border-radius: var(--r-sm); font-family: var(--font-ui); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    .copy-btn:hover { border-color: var(--blue-border); color: var(--blue-bright); }
+    .copy-btn.copied { background: var(--green-bg); color: var(--green); border-color: rgba(16,185,129,0.3); }
+    .code-content { flex: 1; overflow: auto; padding: 20px 24px; }
+    pre { font-family: var(--font-code); font-size: 13px; line-height: 1.65; color: #abb2bf; white-space: pre-wrap; word-break: break-word; margin: 0; }
+    .token-tag{color:#e06c75}.token-attr{color:#d19a66}.token-string{color:#98c379}
+    .token-comment{color:#5c6370;font-style:italic}.token-property{color:#61afef}
+    .token-value{color:#98c379}.token-keyword{color:#c678dd}.token-function{color:#61afef}.token-number{color:#d19a66}
+  </style>
 </head>
 <body>
+<div class="app">
 
-  <div class="app">
-
-    <!-- ── SIDEBAR ── -->
-    <div class="sidebar">
-
-      <!-- User info at top -->
-      <div class="sidebar-user">
-        <div class="user-avatar">🤖</div>
-        <div class="user-info">
-          <span id="userEmail" class="user-email">Loading...</span>
-          <span id="userRole"  class="user-role">user</span>
-        </div>
-        <button class="exit-btn" onclick="logout()" title="Logout">⏻</button>
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">🤖</div>
+      <span class="sidebar-logo-text">AI Website Builder</span>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="userInitial">U</div>
+      <div class="user-meta">
+        <div class="user-email" id="userEmail">Loading...</div>
+        <div class="user-plan"  id="userRole">FREE</div>
       </div>
-
-      <!-- New project button -->
-      <div class="sidebar-actions">
-        <button class="new-project-btn" onclick="startNewProject()">+ New Project</button>
-      </div>
-
-      <!-- Projects label -->
-      <div class="sidebar-label">MY PROJECTS</div>
-
-      <!-- Projects list -->
-      <div id="projectsList" class="projects-list">
-        <p class="empty-msg">No projects yet.<br/>Generate your first website!</p>
-      </div>
-
+      <button class="logout-btn" onclick="logout()" title="Logout">⏻</button>
+    </div>
+    <div class="sidebar-actions">
+      <button class="new-btn" onclick="startNewProject()">+ New Project</button>
+      <button class="pricing-icon-btn" onclick="window.location.href='/pricing.html'" title="Plans">💎</button>
     </div>
 
-    <!-- ── MAIN AREA ── -->
-    <div class="main">
+    <div class="sidebar-tabs">
+      <button class="sidebar-tab active" id="tab-projects" onclick="switchSidebarTab('projects')">🗂 Projects</button>
+      <button class="sidebar-tab"        id="tab-deployed" onclick="switchSidebarTab('deployed')">🌐 Deployed</button>
+    </div>
 
-      <!-- LEFT PANEL: prompt -->
-      <div class="panel left-panel">
-        <h1>🤖 AI Website Builder</h1>
-        <p class="subtitle">Describe your website and it will be built instantly</p>
-
-        <textarea
-          id="promptInput"
-          placeholder="Example: Make me a restaurant website with a menu, about section and contact form."
-          rows="6"
-        ></textarea>
-
-        <div class="buttons">
-          <button id="generateBtn" onclick="generateWebsite()">✨ Generate</button>
-          <button id="modifyBtn"   onclick="modifyWebsite()" disabled>🔧 Modify</button>
-        </div>
-
-        <div id="statusMessage" class="status hidden"></div>
-        <div id="explanation"   class="explanation hidden"></div>
-        <div id="chatHistory"   class="chat-history"></div>
+    <div id="projectsPanel" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+      <div class="sidebar-section-label">My Projects</div>
+      <div id="projectsList" class="projects-list">
+        <div class="empty-msg"><div class="empty-msg-icon">🗂</div>No projects yet.<br/>Generate your first website!</div>
       </div>
+    </div>
 
-      <!-- RIGHT PANEL: preview + code -->
-      <div class="panel right-panel">
-
-        <div class="preview-header">
-          <span id="currentProjectName">Live Preview</span>
-          <div class="header-actions">
-            <div class="view-toggle">
-              <button class="toggle-btn active" id="previewToggle" onclick="switchView('preview')">👁 Preview</button>
-              <button class="toggle-btn" id="codeToggle" onclick="switchView('code')" disabled>&lt;/&gt; Code</button>
-            </div>
-            <button id="downloadBtn" onclick="downloadCode()" disabled>⬇️ Download</button>
-          </div>
-        </div>
-
-        <!-- Preview -->
-        <div id="previewView" style="flex:1;display:flex;flex-direction:column;">
-          <iframe id="previewFrame" title="Website Preview"></iframe>
-        </div>
-
-        <!-- Code view -->
-        <div id="codeView" class="hidden" style="flex:1;display:flex;flex-direction:column;background:#0d1117;overflow:hidden;">
-          <div class="code-tabs">
-            <button class="code-tab active" onclick="switchCodeTab('html')">HTML</button>
-            <button class="code-tab"        onclick="switchCodeTab('css')">CSS</button>
-            <button class="code-tab"        onclick="switchCodeTab('js')">JavaScript</button>
-            <button class="copy-btn"        onclick="copyCode()">📋 Copy</button>
-          </div>
-          <div class="code-content">
-            <pre id="codeDisplay"></pre>
-          </div>
-        </div>
-
+    <div id="deployedPanel" style="display:none;flex-direction:column;flex:1;min-height:0;">
+      <div class="sidebar-section-label">Live Websites</div>
+      <div id="deployedList" class="deploy-list">
+        <div class="empty-msg"><div class="empty-msg-icon">🌐</div>No deployments yet.</div>
       </div>
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <div class="main">
+    <div class="left-panel">
+      <div class="left-panel-header">
+        <div class="left-panel-title">Website Generator</div>
+        <div class="left-panel-sub">Describe what you want in plain English</div>
+      </div>
+      <div class="prompt-area">
+        <textarea id="promptInput" placeholder="Example: Build a modern restaurant website with a hero section, menu with 6 items, about us, and contact form. Use warm earthy colors."></textarea>
+        <div class="action-row">
+          <button id="generateBtn" onclick="generateWebsite()">✨ Generate</button>
+          <button id="modifyBtn"   onclick="modifyWebsite()" disabled>🔧 Modify</button>
+        </div>
+        <button id="deployBtn" onclick="deployWebsite()" disabled>🚀 Deploy Live</button>
+        <div id="deployedUrlCard" class="hidden">
+          <div class="deploy-label">🌐 Your Live Website</div>
+          <a id="deployedUrlLink" href="#" target="_blank"></a>
+          <button class="copy-url-btn" onclick="copyDeployedUrl()">📋 Copy Link</button>
+        </div>
+        <div id="statusMessage" class="status hidden"></div>
+        <div id="explanation"   class="explanation hidden"></div>
+        <div id="chatHistory"   class="chat-history"></div>
+      </div>
+    </div>
+
+    <div class="right-panel">
+      <div class="preview-header">
+        <span class="preview-title" id="currentProjectName">Live Preview</span>
+        <div class="header-actions">
+          <div class="view-toggle">
+            <button class="toggle-btn active" id="previewToggle" onclick="switchView('preview')">👁 Preview</button>
+            <button class="toggle-btn" id="codeToggle" onclick="switchView('code')" disabled>&lt;/&gt; Code</button>
+          </div>
+          <button id="downloadBtn" onclick="downloadCode()" disabled>⬇️ Download</button>
+        </div>
+      </div>
+      <div id="previewView"><iframe id="previewFrame" title="Website Preview"></iframe></div>
+      <div id="codeView" class="hidden">
+        <div class="code-tabs">
+          <button class="code-tab active" onclick="switchCodeTab('html')">HTML</button>
+          <button class="code-tab"        onclick="switchCodeTab('css')">CSS</button>
+          <button class="code-tab"        onclick="switchCodeTab('js')">JavaScript</button>
+          <button class="copy-btn"        onclick="copyCode()">📋 Copy</button>
+        </div>
+        <div class="code-content"><pre id="codeDisplay"></pre></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
 </body>
 </html>
