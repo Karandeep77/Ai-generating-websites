@@ -5,7 +5,7 @@
   const token = localStorage.getItem("token");
   const role  = localStorage.getItem("role");
   if (!token || role !== "admin") {
-    window.location.href = "/login.html";
+    window.location.href = "/";
   }
 })();
 
@@ -21,7 +21,7 @@ function authHeaders() {
 
 function logout() {
   localStorage.clear();
-  window.location.href = "/login.html";
+  window.location.href = "/";
 }
 
 // ── ON PAGE LOAD ──────────────────────────────────────────────────────
