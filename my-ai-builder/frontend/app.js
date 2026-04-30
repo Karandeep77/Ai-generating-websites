@@ -1,15 +1,19 @@
-// app.js — with deploy feature
-
 (function checkAuth() {
   if (!localStorage.getItem("token")) window.location.href = "/";
 })();
 
 const BACKEND_URL = "";
 
+let currentHTML = null;
+let currentProjectId = null;
+let currentProjectName = "New project";
+let currentDeployUrl = null;
+let isWorking = false;
+
 function authHeaders() {
   return {
-    "Content-Type":  "application/json",
-    "Authorization": `Bearer ${localStorage.getItem("token")}`
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${localStorage.getItem("token")}`,
   };
 }
 
@@ -18,312 +22,301 @@ function logout() {
   window.location.href = "/";
 }
 
-// ── STATE ─────────────────────────────────────────────────────────────
-let currentHTML      = null;
-let currentProjectId = null;
-let currentView      = "preview";
-let currentCodeTab   = "html";
-let parsedCode       = { html: "", css: "", js: "" };
-let currentDeployUrl = null;
-
-// ── ON PAGE LOAD ──────────────────────────────────────────────────────
 window.addEventListener("load", () => {
-  const email    = localStorage.getItem("email");
-  const userRole = localStorage.getItem("role");
-
-  const emailEl   = document.getElementById("userEmail");
-  const roleEl    = document.getElementById("userRole");
-  const initialEl = document.getElementById("userInitial");
-
-  if (emailEl)   emailEl.textContent   = email || "User";
-  if (roleEl)    roleEl.textContent    = userRole === "admin" ? "⭐ ADMIN" : (userRole || "free").toUpperCase();
-  if (initialEl) initialEl.textContent = email ? email[0].toUpperCase() : "U";
-
+  hydrateAccount();
+  setupPromptInput();
+  startNewProject(false);
   loadAllProjects();
-  loadDeployments();
-
-  if (userRole !== "admin") checkAndShowUpgradePrompt();
+  checkAndShowUpgradePrompt();
 });
 
-// ── SIDEBAR TAB SWITCH ────────────────────────────────────────────────
-function switchSidebarTab(tab) {
-  document.getElementById("tab-projects").classList.toggle("active", tab === "projects");
-  document.getElementById("tab-deployed").classList.toggle("active", tab === "deployed");
-  document.getElementById("projectsPanel").style.display = tab === "projects" ? "flex" : "none";
-  document.getElementById("deployedPanel").style.display = tab === "deployed" ? "flex" : "none";
-  document.getElementById("projectsPanel").style.flexDirection = "column";
-  document.getElementById("projectsPanel").style.flex = "1";
-  document.getElementById("projectsPanel").style.minHeight = "0";
-  document.getElementById("deployedPanel").style.flexDirection = "column";
-  document.getElementById("deployedPanel").style.flex = "1";
-  document.getElementById("deployedPanel").style.minHeight = "0";
+function hydrateAccount() {
+  const email = localStorage.getItem("email") || "User";
+  const role = localStorage.getItem("role") || "free";
+
+  document.getElementById("userEmail").textContent = email;
+  document.getElementById("userRole").textContent = role === "admin" ? "ADMIN" : role.toUpperCase();
+  document.getElementById("userInitial").textContent = email[0]?.toUpperCase() || "U";
 }
 
-// ── LOAD ALL PROJECTS ─────────────────────────────────────────────────
+function setupPromptInput() {
+  const input = document.getElementById("promptInput");
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 150) + "px";
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      submitPrompt();
+    }
+  });
+}
+
 async function loadAllProjects() {
   try {
     const res = await fetch(`${BACKEND_URL}/api/projects`, { headers: authHeaders() });
     if (res.status === 401) { logout(); return; }
     const data = await res.json();
-    if (data.success) renderProjectsList(data.projects);
+    if (data.success) renderProjectsList(data.projects || []);
   } catch (err) {
     console.error("Could not load projects:", err.message);
   }
 }
 
-// ── RENDER SIDEBAR LIST ───────────────────────────────────────────────
 function renderProjectsList(projects) {
   const container = document.getElementById("projectsList");
-  if (!projects || projects.length === 0) {
-    container.innerHTML = `<div class="empty-msg"><div class="empty-msg-icon">🗂</div>No projects yet.<br/>Generate your first website!</div>`;
+  if (!projects.length) {
+    container.innerHTML = `<div class="empty-msg">No projects yet.<br/>Start with a prompt.</div>`;
     return;
   }
-  container.innerHTML = projects.map(p => `
-    <div class="project-card ${p.id === currentProjectId ? "active" : ""}"
-         id="project-card-${p.id}" onclick="loadProject(${p.id})">
+
+  container.innerHTML = projects.map(project => `
+    <div class="project-card ${project.id === currentProjectId ? "active" : ""}" id="project-card-${project.id}" onclick="loadProject(${project.id})">
       <span class="project-card-name"
-            contenteditable="true" spellcheck="false"
+            contenteditable="true"
+            spellcheck="false"
             onclick="event.stopPropagation()"
-            onblur="renameProject(${p.id}, this)"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"
-            title="Click to rename">${escapeHtml(p.name)}</span>
-      <div class="project-card-date">${formatDate(p.updated_at)}</div>
-      ${p.deployed_url ? `<span class="project-card-deployed">🌐 Live</span>` : ""}
-      <button class="project-card-del"
-              onclick="event.stopPropagation(); deleteProject(${p.id})" title="Delete">✕</button>
+            onblur="renameProject(${project.id}, this)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${escapeHtml(project.name)}</span>
+      <div class="project-card-meta">
+        ${project.deployed_url ? `<span class="live-dot" title="Live"></span>` : ""}
+        <span>${formatDate(project.updated_at || project.created_at)}</span>
+      </div>
+      <button class="delete-project" onclick="event.stopPropagation(); deleteProject(${project.id})" title="Delete">x</button>
     </div>
   `).join("");
 }
 
-// ── LOAD DEPLOYMENTS ──────────────────────────────────────────────────
-async function loadDeployments() {
-  try {
-    const res  = await fetch(`${BACKEND_URL}/api/deploy`, { headers: authHeaders() });
-    if (!res.ok) return;
-    const data = await res.json();
-    renderDeploymentsList(data.deployments || []);
-  } catch (err) {
-    console.error("Could not load deployments:", err.message);
-  }
-}
-
-function renderDeploymentsList(deployments) {
-  const container = document.getElementById("deployedList");
-  if (!deployments || deployments.length === 0) {
-    container.innerHTML = `<div class="empty-msg"><div class="empty-msg-icon">🌐</div>No deployments yet.<br/>Generate a website and click Deploy!</div>`;
-    return;
-  }
-  container.innerHTML = deployments.map(d => `
-    <div class="deploy-card">
-      <div class="deploy-card-name">${escapeHtml(d.project_name)}</div>
-      <a class="deploy-card-url" href="${d.url}" target="_blank" title="${d.url}">${d.url}</a>
-      <div class="deploy-card-date">${formatDate(d.created_at)}</div>
-    </div>
-  `).join("");
-}
-
-// ── LOAD ONE PROJECT ──────────────────────────────────────────────────
 async function loadProject(id) {
   try {
-    showStatus("Loading...", "loading");
-    const res  = await fetch(`${BACKEND_URL}/api/projects/${id}`, { headers: authHeaders() });
+    setStatus("Loading project...", "loading");
+    const res = await fetch(`${BACKEND_URL}/api/projects/${id}`, { headers: authHeaders() });
     if (res.status === 401) { logout(); return; }
     const data = await res.json();
-    if (!data.success) throw new Error("Project not found");
+    if (!data.success) throw new Error(data.error || "Project not found");
 
-    const p          = data.project;
-    currentHTML      = p.html;
-    currentProjectId = p.id;
-    parsedCode       = extractCodeParts(currentHTML);
-    currentDeployUrl = p.deployed_url || null;
+    const project = data.project;
+    currentProjectId = project.id;
+    currentProjectName = project.name;
+    currentHTML = project.html;
+    currentDeployUrl = project.deployed_url || null;
+
+    document.getElementById("currentProjectName").textContent = project.name;
+    document.getElementById("promptInput").value = "";
+    document.getElementById("promptInput").style.height = "auto";
+    document.getElementById("deployBtn").disabled = false;
 
     displayPreview(currentHTML);
-    document.getElementById("currentProjectName").textContent = p.name;
-    document.getElementById("modifyBtn").disabled             = false;
-    document.getElementById("downloadBtn").disabled           = false;
-    document.getElementById("codeToggle").disabled            = false;
-    document.getElementById("deployBtn").disabled             = false;
-
-    // Show deployed URL if already deployed
-    if (p.deployed_url) {
-      showDeployedUrl(p.deployed_url);
-    } else {
-      document.getElementById("deployedUrlCard").classList.add("hidden");
-    }
-
-    switchView("preview");
-    document.querySelectorAll(".project-card").forEach(c => c.classList.remove("active"));
-    const card = document.getElementById(`project-card-${id}`);
-    if (card) card.classList.add("active");
-
-    hideStatus();
-    showExplanation(`Loaded: "${p.name}"`);
+    renderMessages(data.messages || fallbackMessages(project));
+    setDeployedUrl(currentDeployUrl);
+    markActiveProject(id);
+    clearStatus();
+    focusPrompt();
   } catch (err) {
-    showStatus("❌ Could not load project", "error");
+    setStatus("Could not load project: " + err.message, "error");
   }
 }
 
-// ── START NEW PROJECT ─────────────────────────────────────────────────
-function startNewProject() {
-  currentHTML      = null;
+function startNewProject(shouldFocus = true) {
+  currentHTML = null;
   currentProjectId = null;
+  currentProjectName = "New project";
   currentDeployUrl = null;
-  parsedCode       = { html: "", css: "", js: "" };
 
-  const iframe = document.getElementById("previewFrame");
-  if (iframe._blobUrl) { URL.revokeObjectURL(iframe._blobUrl); iframe._blobUrl = null; }
-  iframe.src = "about:blank";
-
-  document.getElementById("currentProjectName").textContent = "Live Preview";
-  document.getElementById("promptInput").value              = "";
-  document.getElementById("modifyBtn").disabled             = true;
-  document.getElementById("downloadBtn").disabled           = true;
-  document.getElementById("codeToggle").disabled            = true;
-  document.getElementById("deployBtn").disabled             = true;
-  document.getElementById("deployedUrlCard").classList.add("hidden");
-  document.getElementById("chatHistory").innerHTML          = "";
-  document.getElementById("codeDisplay").innerHTML          = "";
-  document.getElementById("explanation").classList.add("hidden");
-
-  switchView("preview");
-  hideStatus();
-  document.querySelectorAll(".project-card").forEach(c => c.classList.remove("active"));
-  document.getElementById("promptInput").focus();
+  document.getElementById("currentProjectName").textContent = "New project";
+  document.getElementById("promptInput").value = "";
+  document.getElementById("promptInput").style.height = "auto";
+  document.getElementById("conversationList").innerHTML = "";
+  document.getElementById("deployBtn").disabled = true;
+  setDeployedUrl(null);
+  clearStatus();
+  clearPreview();
+  markActiveProject(null);
+  renderWelcomeMessage();
+  if (shouldFocus) focusPrompt();
 }
 
-// ── GENERATE WEBSITE ──────────────────────────────────────────────────
-async function generateWebsite() {
-  const prompt = document.getElementById("promptInput").value.trim();
-  if (!prompt) { showStatus("Please enter a description first!", "error"); return; }
+function renderWelcomeMessage() {
+  const conversation = document.getElementById("conversationList");
+  conversation.innerHTML = `
+    <div class="message assistant">
+      <div class="message-avatar">AI</div>
+      <div class="message-bubble">Tell me what website you want to build. For example: Create a clean portfolio website for a product designer with case studies and a contact section.</div>
+    </div>
+  `;
+}
 
-  showStatus("⏳ Generating your website... (10–20 seconds)", "loading");
-  disableButtons(true);
-
-  try {
-    const res  = await fetch(`${BACKEND_URL}/api/generate`, {
-      method: "POST", headers: authHeaders(), body: JSON.stringify({ prompt }),
-    });
-    if (res.status === 401) { logout(); return; }
-    const data = await res.json();
-
-    if (res.status === 403 && data.error === "limit_reached") {
-      showStatus(`⚡ ${data.message}`, "error");
-      showUpgradeBanner(); return;
-    }
-    if (!res.ok) throw new Error(data.details || data.error || "Something went wrong");
-
-    currentHTML      = data.html;
-    currentProjectId = data.projectId;
-    currentDeployUrl = null;
-    parsedCode       = extractCodeParts(currentHTML);
-
-    displayPreview(currentHTML);
-    showExplanation(data.explanation);
-    addToHistory(prompt, "Generated");
-
-    document.getElementById("modifyBtn").disabled             = false;
-    document.getElementById("downloadBtn").disabled           = false;
-    document.getElementById("codeToggle").disabled            = false;
-    document.getElementById("deployBtn").disabled             = false;
-    document.getElementById("deployedUrlCard").classList.add("hidden");
-    document.getElementById("promptInput").value              = "";
-
-    const name = prompt.length > 40 ? prompt.substring(0, 40) + "..." : prompt;
-    document.getElementById("currentProjectName").textContent = name;
-
-    await loadAllProjects();
-    document.querySelectorAll(".project-card").forEach(c => c.classList.remove("active"));
-    const card = document.getElementById(`project-card-${currentProjectId}`);
-    if (card) card.classList.add("active");
-
-    hideStatus();
-  } catch (err) {
-    showStatus("❌ Error: " + err.message, "error");
-  } finally {
-    disableButtons(false);
+async function submitPrompt() {
+  if (isWorking) return;
+  const input = document.getElementById("promptInput");
+  const prompt = input.value.trim();
+  if (!prompt) {
+    setStatus("Type what you want to build or change first.", "error");
+    return;
   }
-}
 
-// ── MODIFY WEBSITE ────────────────────────────────────────────────────
-async function modifyWebsite() {
-  const prompt = document.getElementById("promptInput").value.trim();
-  if (!prompt)      { showStatus("Describe what you want to change!", "error"); return; }
-  if (!currentHTML) { showStatus("Generate a website first!", "error"); return; }
-
-  showStatus("⏳ Modifying your website...", "loading");
-  disableButtons(true);
+  isWorking = true;
+  input.value = "";
+  input.style.height = "auto";
+  addMessage("user", prompt);
+  setStatus(currentProjectId ? "Updating your website..." : "Creating your website...", "loading");
+  setControlsBusy(true);
 
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/generate`, {
-      method: "POST", headers: authHeaders(),
-      body: JSON.stringify({ prompt, existingCode: currentHTML, projectId: currentProjectId }),
+    const payload = { prompt };
+    if (currentProjectId && currentHTML) {
+      payload.projectId = currentProjectId;
+      payload.existingCode = currentHTML;
+    }
+
+    const res = await fetch(`${BACKEND_URL}/api/generate`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
     });
     if (res.status === 401) { logout(); return; }
     const data = await res.json();
 
     if (res.status === 403 && data.error === "limit_reached") {
-      showStatus(`⚡ ${data.message}`, "error");
-      showUpgradeBanner(); return;
+      setStatus(data.message || "Plan limit reached.", "error");
+      showUpgradeBanner();
+      return;
     }
     if (!res.ok) throw new Error(data.details || data.error || "Something went wrong");
 
     currentHTML = data.html;
-    parsedCode  = extractCodeParts(currentHTML);
-    displayPreview(currentHTML);
-    if (currentView === "code") showCodeTab(currentCodeTab);
+    currentProjectId = data.projectId;
+    currentDeployUrl = null;
 
-    showExplanation(data.explanation);
-    addToHistory(prompt, "Modified");
-    document.getElementById("promptInput").value = "";
+    displayPreview(currentHTML);
+    addMessage("assistant", data.explanation || "Done. Your preview has been updated.");
+    document.getElementById("deployBtn").disabled = false;
+    setDeployedUrl(null);
+
     await loadAllProjects();
-    hideStatus();
+    if (currentProjectId) {
+      markActiveProject(currentProjectId);
+      const cardName = document.querySelector(`#project-card-${currentProjectId} .project-card-name`);
+      currentProjectName = cardName?.textContent?.trim() || promptName(prompt);
+      document.getElementById("currentProjectName").textContent = currentProjectName;
+    }
+    clearStatus();
   } catch (err) {
-    showStatus("❌ Error: " + err.message, "error");
+    addMessage("assistant", "I could not complete that request. " + err.message);
+    setStatus("Error: " + err.message, "error");
   } finally {
-    disableButtons(false);
+    isWorking = false;
+    setControlsBusy(false);
+    focusPrompt();
   }
 }
 
-// ── DEPLOY WEBSITE ────────────────────────────────────────────────────
 async function deployWebsite() {
-  if (!currentProjectId) { showStatus("Generate a website first!", "error"); return; }
+  if (!currentProjectId || isWorking) {
+    setStatus("Create or open a project before deploying.", "error");
+    return;
+  }
 
-  showStatus("🚀 Deploying your website... (this may take 30-60 seconds)", "loading");
-  document.getElementById("deployBtn").disabled = true;
+  isWorking = true;
+  setControlsBusy(true);
+  setStatus("Deploying your website. This can take 30-60 seconds.", "loading");
 
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/deploy`, {
-      method: "POST", headers: authHeaders(),
+    const res = await fetch(`${BACKEND_URL}/api/deploy`, {
+      method: "POST",
+      headers: authHeaders(),
       body: JSON.stringify({ projectId: currentProjectId }),
     });
     const data = await res.json();
 
     if (res.status === 403 && data.error === "deploy_limit_reached") {
-      showStatus(`⚡ ${data.message}`, "error");
+      setStatus(data.message || "Deployment limit reached.", "error");
       return;
     }
     if (!res.ok) throw new Error(data.error || "Deployment failed");
 
     currentDeployUrl = data.url;
-    showDeployedUrl(data.url);
-    showExplanation(`🎉 Deployed! Your website is now live.`);
-    hideStatus();
-
-    // Refresh both lists
+    setDeployedUrl(data.url);
+    addMessage("assistant", "Your website is live. I added the deployment link above the preview.");
     await loadAllProjects();
-    await loadDeployments();
-
+    markActiveProject(currentProjectId);
+    clearStatus();
   } catch (err) {
-    showStatus("❌ Deploy failed: " + err.message, "error");
+    setStatus("Deploy failed: " + err.message, "error");
   } finally {
-    document.getElementById("deployBtn").disabled = false;
+    isWorking = false;
+    setControlsBusy(false);
   }
 }
 
-function showDeployedUrl(url) {
+function displayPreview(html) {
+  const iframe = document.getElementById("previewFrame");
+  if (iframe._blobUrl) URL.revokeObjectURL(iframe._blobUrl);
+
+  const blob = new Blob([html], { type: "text/html" });
+  const blobUrl = URL.createObjectURL(blob);
+  iframe._blobUrl = blobUrl;
+  iframe.src = blobUrl;
+
+  document.getElementById("emptyPreview").classList.add("hidden");
+  document.getElementById("previewShell").classList.add("has-preview");
+  document.getElementById("previewState").textContent = "Previewing";
+}
+
+function clearPreview() {
+  const iframe = document.getElementById("previewFrame");
+  if (iframe._blobUrl) {
+    URL.revokeObjectURL(iframe._blobUrl);
+    iframe._blobUrl = null;
+  }
+  iframe.src = "about:blank";
+  document.getElementById("emptyPreview").classList.remove("hidden");
+  document.getElementById("previewShell").classList.remove("has-preview");
+  document.getElementById("previewState").textContent = "Ready";
+}
+
+function renderMessages(messages) {
+  const conversation = document.getElementById("conversationList");
+  conversation.innerHTML = "";
+  if (!messages.length) {
+    renderWelcomeMessage();
+    return;
+  }
+  messages.forEach(message => addMessage(message.role, message.content, false));
+}
+
+function fallbackMessages(project) {
+  if (!project.prompt) return [];
+  return [
+    { role: "user", content: project.prompt },
+    { role: "assistant", content: "Loaded the latest version of this project." },
+  ];
+}
+
+function addMessage(role, content, shouldScroll = true) {
+  const conversation = document.getElementById("conversationList");
+  const message = document.createElement("div");
+  const isUser = role === "user";
+  message.className = `message ${isUser ? "user" : "assistant"}`;
+  message.innerHTML = `
+    <div class="message-avatar">${isUser ? "U" : "AI"}</div>
+    <div class="message-bubble">${escapeHtml(content)}</div>
+  `;
+  conversation.appendChild(message);
+  if (shouldScroll) scrollWorkspaceToBottom();
+}
+
+function setDeployedUrl(url) {
   const card = document.getElementById("deployedUrlCard");
   const link = document.getElementById("deployedUrlLink");
-  link.href        = url;
+  if (!url) {
+    card.classList.add("hidden");
+    link.href = "#";
+    link.textContent = "";
+    return;
+  }
+  link.href = url;
   link.textContent = url;
   card.classList.remove("hidden");
 }
@@ -332,159 +325,129 @@ function copyDeployedUrl() {
   if (!currentDeployUrl) return;
   navigator.clipboard.writeText(currentDeployUrl).then(() => {
     const btn = document.querySelector(".copy-url-btn");
-    btn.textContent = "✓ Copied!";
-    setTimeout(() => { btn.textContent = "📋 Copy Link"; }, 2000);
+    btn.textContent = "Copied";
+    setTimeout(() => { btn.textContent = "Copy"; }, 1600);
   });
-}
-
-// ── DISPLAY PREVIEW ───────────────────────────────────────────────────
-function displayPreview(html) {
-  const iframe = document.getElementById("previewFrame");
-  if (iframe._blobUrl) { URL.revokeObjectURL(iframe._blobUrl); iframe._blobUrl = null; }
-  const blob    = new Blob([html], { type: "text/html" });
-  const blobUrl = URL.createObjectURL(blob);
-  iframe._blobUrl = blobUrl;
-  iframe.src = "about:blank";
-  setTimeout(() => { iframe.src = blobUrl; }, 30);
-}
-
-// ── VIEW TOGGLE ───────────────────────────────────────────────────────
-function switchView(view) {
-  currentView = view;
-  const previewView   = document.getElementById("previewView");
-  const codeView      = document.getElementById("codeView");
-  const previewToggle = document.getElementById("previewToggle");
-  const codeToggle    = document.getElementById("codeToggle");
-  if (view === "preview") {
-    previewView.classList.remove("hidden"); codeView.classList.add("hidden");
-    previewToggle.classList.add("active");  codeToggle.classList.remove("active");
-  } else {
-    previewView.classList.add("hidden"); codeView.classList.remove("hidden");
-    previewToggle.classList.remove("active"); codeToggle.classList.add("active");
-    showCodeTab(currentCodeTab);
-  }
-}
-
-// ── CODE TABS ─────────────────────────────────────────────────────────
-function switchCodeTab(tab) {
-  currentCodeTab = tab;
-  document.querySelectorAll(".code-tab").forEach(btn => {
-    const label = btn.textContent.trim().toLowerCase();
-    btn.classList.toggle("active",
-      (tab === "html" && label === "html") ||
-      (tab === "css"  && label === "css")  ||
-      (tab === "js"   && label === "javascript")
-    );
-  });
-  showCodeTab(tab);
-}
-
-function showCodeTab(tab) {
-  const display = document.getElementById("codeDisplay");
-  const code    = parsedCode[tab] ||
-    (tab === "js" ? "// No JavaScript found" : tab === "css" ? "/* No CSS found */" : "");
-  display.innerHTML = highlightCode(code, tab);
-}
-
-function extractCodeParts(fullHtml) {
-  if (!fullHtml) return { html: "", css: "", js: "" };
-  const cssMatches = fullHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || [];
-  const css = cssMatches.map(b => b.replace(/<style[^>]*>/i,"").replace(/<\/style>/i,"")).join("\n\n").trim();
-  const jsMatches = fullHtml.match(/<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/gi) || [];
-  const js = jsMatches.map(b => b.replace(/<script[^>]*>/i,"").replace(/<\/script>/i,"")).join("\n\n").trim();
-  return { html: fullHtml.trim(), css: css || "/* No CSS found */", js: js || "// No JavaScript found" };
-}
-
-function highlightCode(code, type) {
-  let e = code.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  if (type === "html") return e.replace(/(&lt;\/?)([\w]+)/g,'$1<span class="token-tag">$2</span>').replace(/([\w-]+=)(".*?")/g,'<span class="token-attr">$1</span><span class="token-string">$2</span>').replace(/(&lt;!--[\s\S]*?--&gt;)/g,'<span class="token-comment">$1</span>');
-  if (type === "css")  return e.replace(/(\/\*[\s\S]*?\*\/)/g,'<span class="token-comment">$1</span>').replace(/([.#]?[\w-]+)\s*\{/g,'<span class="token-tag">$1</span> {').replace(/([\w-]+)(\s*:)(\s*)([^;}\n]+)/g,'<span class="token-property">$1</span>$2$3<span class="token-value">$4</span>');
-  if (type === "js")   return e.replace(/(\/\/[^\n]*)/g,'<span class="token-comment">$1</span>').replace(/\b(const|let|var|function|return|if|else|for|while|class|new|this|async|await|import|export|default|true|false|null|undefined)\b/g,'<span class="token-keyword">$1</span>').replace(/(\w+)(?=\s*\()/g,'<span class="token-function">$1</span>').replace(/\b(\d+\.?\d*)\b/g,'<span class="token-number">$1</span>').replace(/(".*?"|'.*?'|`[\s\S]*?`)/g,'<span class="token-string">$1</span>');
-  return e;
-}
-
-function copyCode() {
-  navigator.clipboard.writeText(parsedCode[currentCodeTab] || "").then(() => {
-    const btn = document.querySelector(".copy-btn");
-    btn.textContent = "✓ Copied!"; btn.classList.add("copied");
-    setTimeout(() => { btn.textContent = "📋 Copy"; btn.classList.remove("copied"); }, 2000);
-  });
-}
-
-function downloadCode() {
-  if (!currentHTML) return;
-  const blob = new Blob([currentHTML], { type: "text/html" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href = url; a.download = "my-website.html"; a.click();
-  URL.revokeObjectURL(url);
 }
 
 async function renameProject(id, element) {
   const newName = element.textContent.trim();
-  if (!newName) { element.textContent = "Untitled"; return; }
+  if (!newName) {
+    element.textContent = "Untitled";
+    return;
+  }
+
   try {
     await fetch(`${BACKEND_URL}/api/projects/${id}`, {
-      method: "PUT", headers: authHeaders(), body: JSON.stringify({ name: newName }),
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify({ name: newName }),
     });
-    if (id === currentProjectId) document.getElementById("currentProjectName").textContent = newName;
-  } catch (err) { console.error("Rename failed:", err.message); }
+    if (id === currentProjectId) {
+      currentProjectName = newName;
+      document.getElementById("currentProjectName").textContent = newName;
+    }
+  } catch (err) {
+    console.error("Rename failed:", err.message);
+  }
 }
 
 async function deleteProject(id) {
   if (!confirm("Delete this project? This cannot be undone.")) return;
   try {
     await fetch(`${BACKEND_URL}/api/projects/${id}`, { method: "DELETE", headers: authHeaders() });
-    if (id === currentProjectId) startNewProject();
+    if (id === currentProjectId) startNewProject(false);
     await loadAllProjects();
-  } catch (err) { showStatus("❌ Could not delete project", "error"); }
+  } catch (err) {
+    setStatus("Could not delete project.", "error");
+  }
 }
 
 async function checkAndShowUpgradePrompt() {
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/payments/usage`, { headers: authHeaders() });
+    const res = await fetch(`${BACKEND_URL}/api/payments/usage`, { headers: authHeaders() });
+    if (!res.ok) return;
     const data = await res.json();
     if (!data.success) return;
+
     const roleEl = document.getElementById("userRole");
     if (roleEl) roleEl.textContent = (data.plan || "free").toUpperCase();
-    if (data.used.websites >= data.limits.websites || data.used.modifications >= data.limits.modifications) showUpgradeBanner();
-  } catch (err) { console.error("Usage check:", err); }
+
+    if (data.used.websites >= data.limits.websites || data.used.modifications >= data.limits.modifications) {
+      showUpgradeBanner();
+    }
+  } catch (err) {
+    console.error("Usage check failed:", err.message);
+  }
 }
 
 function showUpgradeBanner() {
   if (document.getElementById("upgradeBanner")) return;
   const banner = document.createElement("div");
   banner.id = "upgradeBanner";
-  banner.style.cssText = "background:rgba(37,99,235,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:10px;padding:10px 14px;font-size:12px;color:#93c5fd;display:flex;justify-content:space-between;align-items:center;gap:10px;";
-  banner.innerHTML = `<span>⚡ You've reached your plan limit</span><button onclick="window.location.href='/pricing.html'" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer;font-size:12px;">Upgrade →</button>`;
-  const textarea = document.getElementById("promptInput");
-  if (textarea) textarea.parentNode.insertBefore(banner, textarea);
+  banner.className = "live-url-card";
+  banner.innerHTML = `
+    <span>Your current plan limit has been reached.</span>
+    <button class="copy-url-btn" onclick="window.location.href='/pricing.html'">Upgrade</button>
+  `;
+  const inner = document.querySelector(".workspace-inner");
+  inner.insertBefore(banner, inner.firstChild);
 }
 
-function showStatus(message, type) {
+function setControlsBusy(state) {
+  document.getElementById("sendBtn").disabled = state;
+  document.getElementById("deployBtn").disabled = state || !currentProjectId;
+  document.getElementById("promptInput").disabled = state;
+}
+
+function setStatus(message, type) {
   const el = document.getElementById("statusMessage");
-  el.textContent = message; el.className = `status ${type}`; el.classList.remove("hidden");
+  el.textContent = message;
+  el.className = `status ${type}`;
 }
-function hideStatus() { document.getElementById("statusMessage").classList.add("hidden"); }
-function showExplanation(text) {
-  const el = document.getElementById("explanation");
-  el.textContent = "💡 " + text; el.classList.remove("hidden");
+
+function clearStatus() {
+  const el = document.getElementById("statusMessage");
+  el.textContent = "";
+  el.className = "status hidden";
 }
-function disableButtons(state) {
-  document.getElementById("generateBtn").disabled = state;
-  if (state) document.getElementById("modifyBtn").disabled = true;
+
+function markActiveProject(id) {
+  document.querySelectorAll(".project-card").forEach(card => card.classList.remove("active"));
+  if (!id) return;
+  const card = document.getElementById(`project-card-${id}`);
+  if (card) card.classList.add("active");
 }
-function addToHistory(prompt, action) {
-  const container = document.getElementById("chatHistory");
-  const item = document.createElement("div");
-  item.className = "chat-item";
-  item.innerHTML = `<div class="chat-item-label">${action}</div>${escapeHtml(prompt)}`;
-  container.prepend(item);
+
+function scrollWorkspaceToBottom() {
+  const workspace = document.getElementById("workspace");
+  requestAnimationFrame(() => {
+    workspace.scrollTo({ top: workspace.scrollHeight, behavior: "smooth" });
+  });
 }
+
+function focusPrompt() {
+  document.getElementById("promptInput").focus();
+}
+
+function promptName(prompt) {
+  return prompt.length > 40 ? prompt.substring(0, 40) + "..." : prompt;
+}
+
 function escapeHtml(text) {
-  return String(text).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
+
 function formatDate(dateStr) {
-  return new Date(dateStr).toLocaleDateString("en-IN", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
+  if (!dateStr) return "Recently";
+  return new Date(dateStr).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
-document.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "Enter") generateWebsite(); });

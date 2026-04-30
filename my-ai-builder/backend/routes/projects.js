@@ -9,7 +9,7 @@ router.use(requireAuth);
 // ── GET ALL PROJECTS for logged in user ───────────────────────────────
 router.get("/", (req, res) => {
   db.all(
-    `SELECT id, name, prompt, created_at, updated_at
+    `SELECT id, name, prompt, deployed_url, created_at, updated_at
      FROM projects
      WHERE user_id = ?
      ORDER BY updated_at DESC`,
@@ -32,7 +32,20 @@ router.get("/:id", (req, res) => {
     (err, row) => {
       if (err)  return res.status(500).json({ error: "Failed to fetch project" });
       if (!row) return res.status(404).json({ error: "Project not found" });
-      res.json({ success: true, project: row });
+      db.all(
+        `SELECT id, role, content, created_at
+         FROM project_messages
+         WHERE project_id = ? AND user_id = ?
+         ORDER BY created_at ASC, id ASC`,
+        [req.params.id, req.user.id],
+        (msgErr, messages) => {
+          if (msgErr) {
+            console.error("Fetch project messages error:", msgErr.message);
+            return res.status(500).json({ error: "Failed to fetch project messages" });
+          }
+          res.json({ success: true, project: row, messages: messages || [] });
+        }
+      );
     }
   );
 });

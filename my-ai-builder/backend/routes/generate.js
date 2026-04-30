@@ -15,8 +15,9 @@ const PLAN_LIMITS = {
 router.post("/", requireAuth, async (req, res) => {
   const { prompt, existingCode, projectId } = req.body;
   const userId = req.user.id;
+  const cleanPrompt = (prompt || "").trim();
 
-  if (!prompt || prompt.trim() === "") {
+  if (!cleanPrompt) {
     return res.status(400).json({ error: "Prompt is required" });
   }
 
@@ -78,10 +79,11 @@ router.post("/", requireAuth, async (req, res) => {
 
     // ── GENERATE ──────────────────────────────────────────────────
     try {
-      console.log("Generating — user:", userId, "| prompt:", prompt.substring(0, 50));
+      console.log("Generating user:", userId, "| prompt:", cleanPrompt.substring(0, 50));
 
-      const result     = await generateWebsite(prompt, existingCode || null);
+      const result     = await generateWebsite(cleanPrompt, existingCode || null);
       const htmlToSave = String(result.html);
+      const explanation = result.explanation || (projectId ? "Website updated." : "Website generated.");
 
       // Increment usage (safe — ignore if columns missing)
       if (user.role !== "admin") {
@@ -102,37 +104,39 @@ router.post("/", requireAuth, async (req, res) => {
         db.run(
           `UPDATE projects SET html = ?, prompt = ?, updated_at = datetime('now')
            WHERE id = ? AND user_id = ?`,
-          [htmlToSave, prompt, projectId, userId],
+          [htmlToSave, cleanPrompt, projectId, userId],
           function(err) {
             if (err) {
               console.error("Update error:", err.message);
               return res.status(500).json({ error: "Failed to update project" });
             }
+            saveProjectMessages(projectId, userId, cleanPrompt, explanation);
             return res.json({
               success:     true,
               html:        htmlToSave,
-              explanation: result.explanation || "Website updated.",
+              explanation,
               projectId,
             });
           }
         );
       } else {
-        const projectName = prompt.length > 40
-          ? prompt.substring(0, 40) + "..."
-          : prompt;
+        const projectName = cleanPrompt.length > 40
+          ? cleanPrompt.substring(0, 40) + "..."
+          : cleanPrompt;
 
         db.run(
           `INSERT INTO projects (user_id, name, prompt, html) VALUES (?, ?, ?, ?)`,
-          [userId, projectName, prompt, htmlToSave],
+          [userId, projectName, cleanPrompt, htmlToSave],
           function(err) {
             if (err) {
               console.error("Insert error:", err.message);
               return res.status(500).json({ error: "Failed to save project" });
             }
+            saveProjectMessages(this.lastID, userId, cleanPrompt, explanation);
             return res.json({
               success:     true,
               html:        htmlToSave,
-              explanation: result.explanation || "Website generated.",
+              explanation,
               projectId:   this.lastID,
             });
           }
@@ -149,5 +153,23 @@ router.post("/", requireAuth, async (req, res) => {
     }
   });
 });
+
+function saveProjectMessages(projectId, userId, prompt, explanation) {
+  const messages = [
+    ["user", prompt],
+    ["assistant", explanation],
+  ];
+
+  for (const [role, content] of messages) {
+    db.run(
+      `INSERT INTO project_messages (project_id, user_id, role, content)
+       VALUES (?, ?, ?, ?)`,
+      [projectId, userId, role, content],
+      (err) => {
+        if (err) console.error("Message save error:", err.message);
+      }
+    );
+  }
+}
 
 module.exports = router;

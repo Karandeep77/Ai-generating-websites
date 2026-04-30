@@ -90,6 +90,20 @@ db.serialize(() => {
 
   // ── PAYMENTS TABLE ────────────────────────────────────────────────
   db.run(`
+    CREATE TABLE IF NOT EXISTS project_messages (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      user_id    INTEGER NOT NULL,
+      role       TEXT NOT NULL,
+      content    TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `, (err) => {
+    if (err) console.error("Project messages table error:", err.message);
+    else     console.log("Project messages table ready");
+  });
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS payments (
       id                 INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id            INTEGER NOT NULL,
