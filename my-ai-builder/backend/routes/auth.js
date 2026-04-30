@@ -34,6 +34,7 @@ router.post("/register", async (req, res) => {
           if (err.message.includes("UNIQUE")) {
             return res.status(400).json({ error: "Email already registered" });
           }
+          console.error("Registration insert failed:", err.message);
           return res.status(500).json({ error: "Registration failed" });
         }
 

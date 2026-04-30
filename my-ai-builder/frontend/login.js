@@ -1,13 +1,37 @@
 // login.js
 
 const BACKEND_URL = "";
+const REQUEST_TIMEOUT_MS = 45000;
+
+async function apiFetch(path, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(`${BACKEND_URL}${path}`, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function readResponse(res) {
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return res.json();
+  }
+
+  return {};
+}
 
 window.addEventListener("load", async () => {
   const token = localStorage.getItem("token");
   if (!token) return;
 
   try {
-    const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
+    const res = await apiFetch("/api/auth/me", {
       headers: { "Authorization": `Bearer ${token}` }
     });
     if (res.ok) {
@@ -47,12 +71,12 @@ async function doLogin() {
   btn.textContent = "Logging in...";
 
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/auth/login`, {
+    const res  = await apiFetch("/api/auth/login", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ email, password }),
     });
-    const data = await res.json();
+    const data = await readResponse(res);
 
     if (!res.ok) {
       errEl.textContent = data.error || "Login failed";
@@ -71,7 +95,9 @@ async function doLogin() {
     redirectAfterLogin(data.role);
 
   } catch (err) {
-    errEl.textContent = "Could not connect to server";
+    errEl.textContent = err.name === "AbortError"
+      ? "Server is taking too long to respond. Please try again in a minute."
+      : "Could not connect to server";
     errEl.classList.remove("hidden");
   } finally {
     btn.disabled    = false;
@@ -104,12 +130,12 @@ async function doRegister() {
   btn.textContent = "Creating account...";
 
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/auth/register`, {
+    const res  = await apiFetch("/api/auth/register", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ email, password }),
     });
-    const data = await res.json();
+    const data = await readResponse(res);
 
     if (!res.ok) {
       errEl.textContent = data.error || "Registration failed";
@@ -126,7 +152,9 @@ async function doRegister() {
     redirectAfterLogin(data.role);
 
   } catch (err) {
-    errEl.textContent = "Could not connect to server";
+    errEl.textContent = err.name === "AbortError"
+      ? "Server is taking too long to respond. Please try again in a minute."
+      : "Could not connect to server";
     errEl.classList.remove("hidden");
   } finally {
     btn.disabled    = false;
