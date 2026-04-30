@@ -1,13 +1,37 @@
 const sqlite3 = require("sqlite3").verbose();
 const path    = require("path");
 const fs      = require("fs");
+const os      = require("os");
 const bcrypt  = require("bcryptjs");
 
-const DB_PATH = process.env.NODE_ENV === "production"
-  ? "/data/projects.db"
-  : path.join(__dirname, "projects.db");
+function canUseDirectory(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.accessSync(dir, fs.constants.R_OK | fs.constants.W_OK);
+    return true;
+  } catch (err) {
+    console.warn(`Database directory unavailable: ${dir} (${err.message})`);
+    return false;
+  }
+}
 
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+function resolveDbPath() {
+  const fallbackPath = process.env.NODE_ENV === "production"
+    ? path.join(os.tmpdir(), "projects.db")
+    : path.join(__dirname, "projects.db");
+  const requestedPath = process.env.SQLITE_DB_PATH
+    || (process.env.NODE_ENV === "production" ? "/data/projects.db" : fallbackPath);
+
+  if (canUseDirectory(path.dirname(requestedPath))) {
+    return requestedPath;
+  }
+
+  canUseDirectory(path.dirname(fallbackPath));
+  console.warn(`Falling back to local SQLite database: ${fallbackPath}`);
+  return fallbackPath;
+}
+
+const DB_PATH = resolveDbPath();
   
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) console.error("Database connection failed:", err.message);
