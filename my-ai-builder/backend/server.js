@@ -5,6 +5,7 @@ require("dotenv").config();
 
 if (!process.env.ANTHROPIC_API_KEY) { console.error("No API key!");    process.exit(1); }
 if (!process.env.JWT_SECRET)        { console.error("No JWT_SECRET!"); process.exit(1); }
+if (!process.env.NETLIFY_TOKEN)     { console.error("No NETLIFY_TOKEN!"); process.exit(1); }
 
 const generateRoute             = require("./routes/generate");
 const projectsRoute             = require("./routes/projects");
