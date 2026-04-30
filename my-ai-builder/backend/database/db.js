@@ -1,11 +1,13 @@
 const sqlite3 = require("sqlite3").verbose();
 const path    = require("path");
+const fs      = require("fs");
 const bcrypt  = require("bcryptjs");
 
 const DB_PATH = process.env.NODE_ENV === "production"
   ? "/data/projects.db"
   : path.join(__dirname, "projects.db");
 
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) console.error("Database connection failed:", err.message);
