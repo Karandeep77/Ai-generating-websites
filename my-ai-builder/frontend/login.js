@@ -25,13 +25,22 @@ function switchTab(tab) {
   document.getElementById("registerForm").classList.toggle("hidden", tab !== "register");
   document.getElementById("loginTab").classList.toggle("active",     tab === "login");
   document.getElementById("registerTab").classList.toggle("active",  tab === "register");
+
+  const title = document.querySelector(".auth-title");
+  const subtitle = document.querySelector(".auth-subtitle");
+  if (title) title.textContent = tab === "login" ? "Start building today" : "Create your account";
+  if (subtitle) {
+    subtitle.textContent = tab === "login"
+      ? "Sign in to continue to your website builder."
+      : "Create an account to save projects and build websites with AI.";
+  }
 }
 
 async function doLogin() {
   const email    = document.getElementById("loginEmail").value.trim();
   const password = document.getElementById("loginPassword").value;
   const errEl    = document.getElementById("loginError");
-  const btn      = document.querySelector("#loginForm .btn-primary");
+  const btn      = document.getElementById("loginBtn");
 
   errEl.classList.add("hidden");
   btn.disabled    = true;
@@ -66,7 +75,7 @@ async function doLogin() {
     errEl.classList.remove("hidden");
   } finally {
     btn.disabled    = false;
-    btn.textContent = "Login →";
+    btn.textContent = "Sign In";
   }
 }
 
@@ -75,7 +84,7 @@ async function doRegister() {
   const password = document.getElementById("regPassword").value;
   const confirm  = document.getElementById("regConfirm").value;
   const errEl    = document.getElementById("registerError");
-  const btn      = document.querySelector("#registerForm .btn-primary");
+  const btn      = document.getElementById("registerBtn");
 
   errEl.classList.add("hidden");
 
@@ -121,12 +130,12 @@ async function doRegister() {
     errEl.classList.remove("hidden");
   } finally {
     btn.disabled    = false;
-    btn.textContent = "Create Account →";
+    btn.textContent = "Create Account";
   }
 }
 
 function redirectAfterLogin(role) {
-  window.location.href = role === "admin" ? "/admin.html" : "/index.html";
+  window.location.href = role === "admin" ? "/admin.html" : "/builder.html";
 }
 
 document.addEventListener("keydown", e => {

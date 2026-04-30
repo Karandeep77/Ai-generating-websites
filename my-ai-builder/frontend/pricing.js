@@ -2,7 +2,7 @@
 
 (function checkAuth() {
   if (!localStorage.getItem("token")) {
-    window.location.href = "/login.html";
+    window.location.href = "/";
   }
 })();
 
@@ -26,7 +26,7 @@ window.addEventListener("load", () => {
 async function loadUsage() {
   try {
     const res  = await fetch(`${BACKEND_URL}/api/payments/usage`, { headers: authHeaders() });
-    if (res.status === 401) { localStorage.clear(); window.location.href = "/login.html"; return; }
+    if (res.status === 401) { localStorage.clear(); window.location.href = "/"; return; }
     const data = await res.json();
     if (!data.success) return;
 

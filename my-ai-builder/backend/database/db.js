@@ -106,14 +106,39 @@ function addColumnSafe(table, column, definition) {
 
 // Create default admin
 async function createDefaultAdmin() {
-  db.get(`SELECT id FROM users WHERE email = ?`, ["admin@admin.com"], async (err, row) => {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminEmail || !adminPassword) {
+    console.log("Default admin not created: ADMIN_EMAIL and ADMIN_PASSWORD are not set");
+    return;
+  }
+
+  if (adminPassword.length < 8) {
+    console.error("Default admin not created: ADMIN_PASSWORD must be at least 8 characters");
+    return;
+  }
+
+  const normalizedEmail = adminEmail.toLowerCase().trim();
+
+  if (normalizedEmail !== "admin@admin.com") {
+    db.run(
+      `DELETE FROM users WHERE email = ? AND role = 'admin'`,
+      ["admin@admin.com"],
+      (err) => {
+        if (err) console.error("Could not remove old default admin:", err.message);
+      }
+    );
+  }
+
+  db.get(`SELECT id FROM users WHERE email = ?`, [normalizedEmail], async (err, row) => {
     if (row) { console.log("Admin exists ✓"); return; }
-    const hash = await bcrypt.hash("admin123", 10);
+    const hash = await bcrypt.hash(adminPassword, 10);
     db.run(
       `INSERT INTO users (name, email, password, role, plan) VALUES (?, ?, ?, ?, ?)`,
-      ["Admin", "admin@admin.com", hash, "admin", "agency"],
+      ["Admin", normalizedEmail, hash, "admin", "agency"],
       (err) => {
-        if (!err) console.log("Default admin created ✓ → admin@admin.com / admin123");
+        if (!err) console.log(`Default admin created: ${normalizedEmail}`);
       }
     );
   });

@@ -1,7 +1,7 @@
 // app.js — with deploy feature
 
 (function checkAuth() {
-  if (!localStorage.getItem("token")) window.location.href = "/login.html";
+  if (!localStorage.getItem("token")) window.location.href = "/";
 })();
 
 const BACKEND_URL = "";
@@ -15,7 +15,7 @@ function authHeaders() {
 
 function logout() {
   localStorage.clear();
-  window.location.href = "/login.html";
+  window.location.href = "/";
 }
 
 // ── STATE ─────────────────────────────────────────────────────────────
