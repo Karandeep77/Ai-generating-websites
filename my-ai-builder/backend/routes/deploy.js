@@ -90,7 +90,10 @@ async function doDeploy(res, userId, projectId) {
     const siteName = `aibuilder-u${userId}-p${projectId}`;
     const site     = await netlifyJSON("POST", "/api/v1/sites", { name: siteName });
 
-    if (!site.id) throw new Error(site.message || "Failed to create Netlify site");
+    if (!site.id) {
+      console.error("Netlify site creation failed. Full response:", JSON.stringify(site));
+      throw new Error(site.message || site.error || "Failed to create Netlify site");
+    }
     console.log("Site created:", site.id, "→", site.ssl_url);
 
     // 5. Upload ZIP
@@ -133,8 +136,15 @@ function netlifyJSON(method, path, body) {
       let d = "";
       res.on("data", c => d += c);
       res.on("end", () => {
-        try { resolve(JSON.parse(d)); }
-        catch { reject(new Error("Netlify JSON parse error: " + d.substring(0, 200))); }
+        console.log(`Netlify ${method} ${path} - Status: ${res.statusCode}`);
+        console.log("Response:", d.substring(0, 500));
+        try {
+          const parsed = JSON.parse(d);
+          resolve(parsed);
+        }
+        catch { 
+          reject(new Error(`Netlify API error (${res.statusCode}): ` + d.substring(0, 200))); 
+        }
       });
     });
     req.on("error", reject);
