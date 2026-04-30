@@ -2,30 +2,44 @@ const sqlite3 = require("sqlite3").verbose();
 const path    = require("path");
 const bcrypt  = require("bcryptjs");
 
-const DB_PATH = path.join(__dirname, "projects.db");
+const DB_PATH = process.env.NODE_ENV === "production"
+  ? "/data/projects.db"
+  : path.join(__dirname, "projects.db");
 
+  
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) console.error("Database connection failed:", err.message);
   else     console.log("Database connected ✓");
 });
 
-// Run migrations in sequence using db.serialize
-// This ensures tables are created in order, no race conditions
 db.serialize(() => {
 
   // ── USERS TABLE ───────────────────────────────────────────────────
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      name       TEXT,
-      email      TEXT UNIQUE NOT NULL,
-      password   TEXT NOT NULL,
-      role       TEXT DEFAULT 'user',
-      created_at TEXT DEFAULT (datetime('now'))
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      name              TEXT,
+      email             TEXT UNIQUE NOT NULL,
+      password          TEXT NOT NULL,
+      role              TEXT DEFAULT 'user',
+      plan              TEXT DEFAULT 'free',
+      plan_expires_at   TEXT,
+      websites_used     INTEGER DEFAULT 0,
+      modifications_used INTEGER DEFAULT 0,
+      usage_reset_at    TEXT DEFAULT (datetime('now', 'start of month', '+1 month')),
+      created_at        TEXT DEFAULT (datetime('now'))
     )
   `, (err) => {
     if (err) console.error("Users table error:", err.message);
-    else     console.log("Users table ready ✓");
+    else {
+      console.log("Users table ready ✓");
+      addColumnSafe("users", "plan",                "TEXT DEFAULT 'free'");
+      addColumnSafe("users", "plan_expires_at",     "TEXT");
+      addColumnSafe("users", "websites_used",       "INTEGER DEFAULT 0");
+      addColumnSafe("users", "modifications_used",  "INTEGER DEFAULT 0");
+      addColumnSafe("users", "usage_reset_at",      "TEXT DEFAULT (datetime('now'))");
+      createDefaultAdmin();
+    }
   });
 
   // ── PROJECTS TABLE ────────────────────────────────────────────────
@@ -43,38 +57,66 @@ db.serialize(() => {
     if (err) console.error("Projects table error:", err.message);
     else {
       console.log("Projects table ready ✓");
-
-      // ── SAFELY ADD user_id column if old DB doesn't have it ──────
-      // This handles the case where projects.db already existed
-      // without the user_id column
-      db.run(`ALTER TABLE projects ADD COLUMN user_id INTEGER`, (err) => {
-        // Ignore error — it just means column already exists
-        if (!err) console.log("Added user_id column to existing projects ✓");
-      });
+      addColumnSafe("projects", "user_id", "INTEGER");
+      addColumnSafe("projects", "deployed_url", "TEXT");
     }
   });
 
-  // ── CREATE DEFAULT ADMIN ──────────────────────────────────────────
-  db.get(`SELECT id FROM users WHERE email = ?`, ["admin@admin.com"], async (err, row) => {
-    if (row) {
-      console.log("Admin account exists ✓");
-      return;
-    }
-    try {
-      const hash = await bcrypt.hash("admin123", 10);
-      db.run(
-        `INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)`,
-        ["Admin", "admin@admin.com", hash, "admin"],
-        (err) => {
-          if (err) console.error("Admin creation error:", err.message);
-          else     console.log("Default admin created ✓  →  admin@admin.com / admin123");
-        }
-      );
-    } catch(e) {
-      console.error("Bcrypt error:", e.message);
-    }
+  // ── PAYMENTS TABLE ────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS payments (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id            INTEGER NOT NULL,
+      razorpay_order_id  TEXT,
+      razorpay_payment_id TEXT,
+      plan               TEXT NOT NULL,
+      amount             INTEGER NOT NULL,
+      status             TEXT DEFAULT 'created',
+      created_at         TEXT DEFAULT (datetime('now'))
+    )
+  `, (err) => {
+    if (err) console.error("Payments table error:", err.message);
+    else     console.log("Payments table ready ✓");
   });
 
+// Deployments table
+db.run(`
+  CREATE TABLE IF NOT EXISTS deployments (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL,
+    project_id   INTEGER,
+    project_name TEXT,
+    url          TEXT NOT NULL,
+    site_name    TEXT,
+    created_at   TEXT DEFAULT (datetime('now'))
+  )
+`, (err) => {
+  if (err) console.error("Deployments table error:", err.message);
+  else     console.log("Deployments table ready ✓");
 });
+
+addColumnSafe("projects", "deployed_url", "TEXT");
+});
+
+
+// Safely add column if it doesn't exist
+function addColumnSafe(table, column, definition) {
+  db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`, () => {});
+}
+
+// Create default admin
+async function createDefaultAdmin() {
+  db.get(`SELECT id FROM users WHERE email = ?`, ["admin@admin.com"], async (err, row) => {
+    if (row) { console.log("Admin exists ✓"); return; }
+    const hash = await bcrypt.hash("admin123", 10);
+    db.run(
+      `INSERT INTO users (name, email, password, role, plan) VALUES (?, ?, ?, ?, ?)`,
+      ["Admin", "admin@admin.com", hash, "admin", "agency"],
+      (err) => {
+        if (!err) console.log("Default admin created ✓ → admin@admin.com / admin123");
+      }
+    );
+  });
+}
 
 module.exports = db;

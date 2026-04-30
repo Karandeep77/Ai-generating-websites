@@ -2,19 +2,20 @@
 
 const BACKEND_URL = "";
 
-// On page load — if already logged in, go straight to app
 window.addEventListener("load", async () => {
   const token = localStorage.getItem("token");
   if (!token) return;
 
-  // Verify token is still valid
   try {
-    const res  = await fetch(`${BACKEND_URL}/api/auth/me`, {
+    const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
       headers: { "Authorization": `Bearer ${token}` }
     });
     if (res.ok) {
       const data = await res.json();
       redirectAfterLogin(data.user.role);
+    } else {
+      // Token invalid — clear and stay on login page
+      localStorage.clear();
     }
   } catch {}
 });
@@ -50,14 +51,17 @@ async function doLogin() {
       return;
     }
 
-    // Save token and user info to localStorage
+    // ── Save ALL user info to localStorage ──
     localStorage.setItem("token", data.token);
     localStorage.setItem("role",  data.role);
-    localStorage.setItem("email", data.email);
+    localStorage.setItem("email", data.email);   // ← critical
+    localStorage.setItem("name",  data.name || data.email.split("@")[0]);
+
+    console.log("Saved to localStorage:", data.email, data.role);
 
     redirectAfterLogin(data.role);
 
-  } catch {
+  } catch (err) {
     errEl.textContent = "Could not connect to server";
     errEl.classList.remove("hidden");
   } finally {
@@ -81,6 +85,12 @@ async function doRegister() {
     return;
   }
 
+  if (password.length < 6) {
+    errEl.textContent = "Password must be at least 6 characters";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
   btn.disabled    = true;
   btn.textContent = "Creating account...";
 
@@ -98,13 +108,15 @@ async function doRegister() {
       return;
     }
 
+    // ── Save ALL user info to localStorage ──
     localStorage.setItem("token", data.token);
     localStorage.setItem("role",  data.role);
-    localStorage.setItem("email", data.email);
+    localStorage.setItem("email", data.email);   // ← critical
+    localStorage.setItem("name",  data.name || data.email.split("@")[0]);
 
     redirectAfterLogin(data.role);
 
-  } catch {
+  } catch (err) {
     errEl.textContent = "Could not connect to server";
     errEl.classList.remove("hidden");
   } finally {
@@ -114,11 +126,9 @@ async function doRegister() {
 }
 
 function redirectAfterLogin(role) {
-  // Admin goes to admin dashboard, users go to main app
   window.location.href = role === "admin" ? "/admin.html" : "/index.html";
 }
 
-// Allow Enter key to submit
 document.addEventListener("keydown", e => {
   if (e.key === "Enter") {
     const loginVisible = !document.getElementById("loginForm").classList.contains("hidden");

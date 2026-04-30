@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pricing — AI Website Builder</title>
+  <link rel="stylesheet" href="theme.css"/>
+  <style>
+    body { min-height: 100vh; overflow-y: auto; }
+
+    .page { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 40px; gap: 16px;
+    }
+    .back-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 9px 16px; background: var(--bg-card);
+      border: 1px solid var(--border-strong); border-radius: var(--r-md);
+      color: var(--text-secondary); font-family: var(--font-ui);
+      font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .back-btn:hover { border-color: var(--blue-border); color: var(--blue-bright); background: var(--blue-glow); }
+
+    .header-center { text-align: center; flex: 1; }
+    .header-center h1 { font-size: 28px; font-weight: 800; color: var(--text-primary); margin-bottom: 8px; }
+    .header-center p  { font-size: 14px; color: var(--text-secondary); }
+
+    /* Usage bar */
+    .usage-card {
+      background: var(--bg-card); border: 1px solid var(--border-strong);
+      border-radius: var(--r-xl); padding: 22px 28px;
+      display: flex; gap: 48px; margin-bottom: 36px;
+    }
+    .usage-item { flex: 1; }
+    .usage-top  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .usage-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+    .usage-count { font-size: 13px; font-weight: 700; color: var(--blue-bright); font-family: var(--font-code); }
+    .usage-track { height: 6px; background: var(--bg-elevated); border-radius: 99px; overflow: hidden; }
+    .usage-fill  { height: 100%; border-radius: 99px; transition: width 0.6s ease; }
+    .usage-fill.websites { background: linear-gradient(90deg, var(--blue-deep), var(--blue-bright)); }
+    .usage-fill.mods     { background: linear-gradient(90deg, #059669, var(--green)); }
+
+    /* Plans */
+    .plans { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 48px; }
+
+    .plan-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--r-xl); padding: 24px 20px;
+      display: flex; flex-direction: column; gap: 20px;
+      position: relative; transition: all 0.2s;
+    }
+    .plan-card:hover { border-color: var(--border-strong); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .plan-card.popular { border-color: var(--blue-border); background: linear-gradient(160deg, var(--bg-card), rgba(37,99,235,0.05)); }
+    .plan-card.active-plan { border-color: var(--green) !important; background: linear-gradient(160deg, var(--bg-card), var(--green-bg)); }
+
+    .popular-tag {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--blue-mid); color: #fff;
+      padding: 3px 14px; border-radius: 99px;
+      font-size: 11px; font-weight: 700; white-space: nowrap;
+      box-shadow: 0 0 12px rgba(37,99,235,0.4);
+    }
+
+    .plan-header { text-align: center; }
+    .plan-name   { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px; }
+    .plan-price  { font-size: 34px; font-weight: 800; color: var(--blue-bright); line-height: 1; }
+    .plan-price span { font-size: 14px; color: var(--text-dim); font-weight: 400; }
+    .plan-desc   { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+
+    .plan-features { list-style: none; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+    .plan-features li { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 7px; }
+    .plan-features li.dim { color: var(--text-dim); }
+    .feat-icon { font-size: 12px; }
+
+    .plan-btn {
+      width: 100%; padding: 12px; border: none; border-radius: var(--r-md);
+      font-family: var(--font-ui); font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.18s;
+    }
+    .plan-btn.current {
+      background: var(--green-bg); color: var(--green);
+      border: 1px solid rgba(16,185,129,0.3); cursor: default;
+    }
+    .plan-btn.upgrade {
+      background: var(--blue-mid); color: #fff;
+      box-shadow: 0 0 16px rgba(37,99,235,0.3);
+    }
+    .plan-btn.upgrade:hover { background: var(--blue-bright); box-shadow: 0 0 24px rgba(59,130,246,0.4); transform: translateY(-1px); }
+
+    /* History */
+    .history-section h2 { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 14px; }
+    .history-list { display: flex; flex-direction: column; gap: 8px; }
+    .history-item {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--r-lg); padding: 14px 18px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .history-plan   { font-size: 14px; font-weight: 600; color: var(--text-primary); text-transform: capitalize; margin-bottom: 3px; }
+    .history-date   { font-size: 12px; color: var(--text-dim); }
+    .history-amount { font-size: 16px; font-weight: 800; color: var(--blue-bright); font-family: var(--font-code); margin-bottom: 4px; }
+    .dim-msg { color: var(--text-dim); font-size: 13px; padding: 16px 0; }
+
+    /* Modal */
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal.hidden { display: none; }
+    .modal-box { background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: var(--r-xl); padding: 40px; text-align: center; max-width: 360px; width: 90%; }
+    .modal-box.success { border-color: var(--green); }
+    .modal-icon { font-size: 44px; margin-bottom: 16px; }
+    .modal-box h3 { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+    .modal-box p  { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; }
+    .modal-btn {
+      width: 100%; padding: 14px; background: var(--blue-mid); color: #fff; border: none;
+      border-radius: var(--r-md); font-family: var(--font-ui); font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: all 0.18s; box-shadow: 0 0 20px rgba(37,99,235,0.35);
+    }
+    .modal-btn:hover { background: var(--blue-bright); }
+
+    @media (max-width: 800px) {
+      .plans { grid-template-columns: repeat(2, 1fr); }
+      .usage-card { flex-direction: column; gap: 20px; }
+    }
+    @media (max-width: 480px) {
+      .plans { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <button class="back-btn" onclick="window.location.href='/index.html'">← Back to Builder</button>
+    <div class="header-center">
+      <h1>Choose Your Plan</h1>
+      <p>Upgrade anytime · Cancel anytime · All plans include full website generation</p>
+    </div>
+    <div style="min-width:140px;text-align:right;">
+      <span class="badge badge-blue" id="currentPlanBadge">Loading...</span>
+    </div>
+  </div>
+
+  <!-- Usage -->
+  <div class="usage-card">
+    <div class="usage-item">
+      <div class="usage-top">
+        <span class="usage-label">🌐 Websites this month</span>
+        <span class="usage-count" id="websitesText">— / —</span>
+      </div>
+      <div class="usage-track"><div class="usage-fill websites" id="websitesFill" style="width:0%"></div></div>
+    </div>
+    <div class="usage-item">
+      <div class="usage-top">
+        <span class="usage-label">🔧 Modifications this month</span>
+        <span class="usage-count" id="modsText">— / —</span>
+      </div>
+      <div class="usage-track"><div class="usage-fill mods" id="modsFill" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Plans -->
+  <div class="plans">
+    <div class="plan-card" id="plan-free">
+      <div class="plan-header">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">₹0<span>/mo</span></div>
+        <div class="plan-desc">Try it out</div>
+      </div>
+      <ul class="plan-features">
+        <li><span class="feat-icon">✅</span> 2 websites / month</li>
+        <li><span class="feat-icon">✅</span> 5 modifications / month</li>
+        <li><span class="feat-icon">✅</span> Download HTML</li>
+        <li><span class="feat-icon">✅</span> View source code</li>
+        <li class="dim"><span class="feat-icon">❌</span> Priority generation</li>
+      </ul>
+      <button class="plan-btn current" id="btn-free" disabled>Current Plan</button>
+    </div>
+
+    <div class="plan-card" id="plan-starter">
+      <div class="plan-header">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">₹199<span>/mo</span></div>
+        <div class="plan-desc">Individuals & students</div>
+      </div>
+      <ul class="plan-features">
+        <li><span class="feat-icon">✅</span> 15 websites / month</li>
+        <li><span class="feat-icon">✅</span> 30 modifications / month</li>
+        <li><span class="feat-icon">✅</span> Download HTML</li>
+        <li><span class="feat-icon">✅</span> View source code</li>
+        <li><span class="feat-icon">✅</span> Priority generation</li>
+      </ul>
+      <button class="plan-btn upgrade" id="btn-starter" onclick="startPayment('starter')">Upgrade — ₹199/mo</button>
+    </div>
+
+    <div class="plan-card popular" id="plan-pro">
+      <div class="popular-tag">Most Popular</div>
+      <div class="plan-header">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">₹499<span>/mo</span></div>
+        <div class="plan-desc">Freelancers & creators</div>
+      </div>
+      <ul class="plan-features">
+        <li><span class="feat-icon">✅</span> 50 websites / month</li>
+        <li><span class="feat-icon">✅</span> 150 modifications / month</li>
+        <li><span class="feat-icon">✅</span> Download HTML</li>
+        <li><span class="feat-icon">✅</span> View source code</li>
+        <li><span class="feat-icon">✅</span> Priority generation</li>
+      </ul>
+      <button class="plan-btn upgrade" id="btn-pro" onclick="startPayment('pro')">Upgrade — ₹499/mo</button>
+    </div>
+
+    <div class="plan-card" id="plan-agency">
+      <div class="plan-header">
+        <div class="plan-name">Agency</div>
+        <div class="plan-price">₹2499<span>/mo</span></div>
+        <div class="plan-desc">Teams & businesses</div>
+      </div>
+      <ul class="plan-features">
+        <li><span class="feat-icon">✅</span> Unlimited websites</li>
+        <li><span class="feat-icon">✅</span> Unlimited modifications</li>
+        <li><span class="feat-icon">✅</span> Download HTML</li>
+        <li><span class="feat-icon">✅</span> View source code</li>
+        <li><span class="feat-icon">✅</span> Priority support</li>
+      </ul>
+      <button class="plan-btn upgrade" id="btn-agency" onclick="startPayment('agency')">Upgrade — ₹2499/mo</button>
+    </div>
+  </div>
+
+  <!-- Payment History -->
+  <div class="history-section">
+    <h2>Payment History</h2>
+    <div id="paymentHistory" class="history-list">
+      <p class="dim-msg">Loading...</p>
+    </div>
+  </div>
+</div>
+
+<!-- Success Modal -->
+<div id="successModal" class="modal hidden">
+  <div class="modal-box success">
+    <div class="modal-icon">🎉</div>
+    <h3>Payment Successful!</h3>
+    <p id="successMessage">Your plan has been upgraded.</p>
+    <button class="modal-btn" onclick="window.location.href='/index.html'">Start Building →</button>
+  </div>
+</div>
+
+<!-- Loading Modal -->
+<div id="loadingModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-icon">⏳</div>
+    <h3>Processing...</h3>
+    <p>Please wait, do not close this window.</p>
+  </div>
+</div>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="pricing.js"></script>
+</body>
+</html>
