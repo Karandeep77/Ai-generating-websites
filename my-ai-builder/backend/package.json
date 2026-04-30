@@ -1,6 +1,8 @@
 {
   "name": "ai-website-builder",
   "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "start": "node server.js"
   },
