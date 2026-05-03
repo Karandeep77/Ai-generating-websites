@@ -85,10 +85,30 @@ db.serialize(() => {
       console.log("Projects table ready ✓");
       addColumnSafe("projects", "user_id", "INTEGER");
       addColumnSafe("projects", "deployed_url", "TEXT");
+      addColumnSafe("projects", "mode", "TEXT DEFAULT 'frontend_only'");
+      addColumnSafe("projects", "summary", "TEXT");
+      addColumnSafe("projects", "api_spec", "TEXT");
+      addColumnSafe("projects", "integration_checks", "TEXT");
     }
   });
 
-  // ── PAYMENTS TABLE ────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS project_files (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      user_id    INTEGER NOT NULL,
+      path       TEXT NOT NULL,
+      file_type  TEXT NOT NULL,
+      content    TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(project_id, path)
+    )
+  `, (err) => {
+    if (err) console.error("Project files table error:", err.message);
+    else     console.log("Project files table ready");
+  });
+
   db.run(`
     CREATE TABLE IF NOT EXISTS project_messages (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,6 +156,10 @@ db.run(`
 });
 
 addColumnSafe("projects", "deployed_url", "TEXT");
+addColumnSafe("projects", "mode", "TEXT DEFAULT 'frontend_only'");
+addColumnSafe("projects", "summary", "TEXT");
+addColumnSafe("projects", "api_spec", "TEXT");
+addColumnSafe("projects", "integration_checks", "TEXT");
 });
 
 

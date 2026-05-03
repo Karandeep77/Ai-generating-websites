@@ -8,6 +8,10 @@ let currentHTML = null;
 let currentProjectId = null;
 let currentProjectName = "New project";
 let currentDeployUrl = null;
+let currentMode = "frontend_only";
+let currentFiles = [];
+let currentApiSpec = [];
+let currentIntegrationChecks = [];
 let isWorking = false;
 
 function authHeaders() {
@@ -101,13 +105,24 @@ async function loadProject(id) {
     currentProjectName = project.name;
     currentHTML = project.html;
     currentDeployUrl = project.deployed_url || null;
+    currentMode = project.mode || "frontend_only";
+    currentFiles = data.files || [];
+    currentApiSpec = project.apiSpec || [];
+    currentIntegrationChecks = project.integrationChecks || [];
 
     document.getElementById("currentProjectName").textContent = project.name;
     document.getElementById("promptInput").value = "";
     document.getElementById("promptInput").style.height = "auto";
-    document.getElementById("deployBtn").disabled = false;
+    document.getElementById("deployBtn").disabled = !isDeployableMode(currentMode);
 
     displayPreview(currentHTML);
+    renderArtifactPanel({
+      mode: currentMode,
+      summary: project.summary || project.name,
+      files: currentFiles,
+      apiSpec: currentApiSpec,
+      integrationChecks: currentIntegrationChecks,
+    });
     renderMessages(data.messages || fallbackMessages(project));
     setDeployedUrl(currentDeployUrl);
     markActiveProject(id);
@@ -123,6 +138,10 @@ function startNewProject(shouldFocus = true) {
   currentProjectId = null;
   currentProjectName = "New project";
   currentDeployUrl = null;
+  currentMode = "frontend_only";
+  currentFiles = [];
+  currentApiSpec = [];
+  currentIntegrationChecks = [];
 
   document.getElementById("currentProjectName").textContent = "New project";
   document.getElementById("promptInput").value = "";
@@ -130,6 +149,7 @@ function startNewProject(shouldFocus = true) {
   document.getElementById("conversationList").innerHTML = "";
   document.getElementById("deployBtn").disabled = true;
   setDeployedUrl(null);
+  renderArtifactPanel(null);
   clearStatus();
   clearPreview();
   markActiveProject(null);
@@ -160,7 +180,9 @@ async function submitPrompt() {
   input.value = "";
   input.style.height = "auto";
   addMessage("user", prompt);
-  setStatus(currentProjectId ? "Updating your website..." : "Creating your website...", "loading");
+  
+  // Show streaming generation message
+  const streamingMsgId = showStreamingMessage("Generating your website");
   setControlsBusy(true);
 
   try {
@@ -179,19 +201,35 @@ async function submitPrompt() {
     const data = await res.json();
 
     if (res.status === 403 && data.error === "limit_reached") {
+      removeStreamingMessage(streamingMsgId);
       setStatus(data.message || "Plan limit reached.", "error");
       showUpgradeBanner();
       return;
     }
     if (!res.ok) throw new Error(data.details || data.error || "Something went wrong");
 
+    // Remove streaming message and show final result
+    removeStreamingMessage(streamingMsgId);
+    setStatus("");
+
     currentHTML = data.html;
     currentProjectId = data.projectId;
     currentDeployUrl = null;
+    currentMode = data.mode || "frontend_only";
+    currentFiles = data.files || [];
+    currentApiSpec = data.apiSpec || [];
+    currentIntegrationChecks = data.integrationChecks || [];
 
     displayPreview(currentHTML);
-    addMessage("assistant", data.explanation || "Done. Your preview has been updated.");
-    document.getElementById("deployBtn").disabled = false;
+    renderArtifactPanel({
+      mode: currentMode,
+      summary: data.summary || "Generated project",
+      files: currentFiles,
+      apiSpec: currentApiSpec,
+      integrationChecks: currentIntegrationChecks,
+    });
+    addMessage("assistant", data.explanation || "Done. Your preview has been updated.", true, true);
+    document.getElementById("deployBtn").disabled = !isDeployableMode(currentMode);
     setDeployedUrl(null);
 
     await loadAllProjects();
@@ -203,6 +241,7 @@ async function submitPrompt() {
     }
     clearStatus();
   } catch (err) {
+    removeStreamingMessage(streamingMsgId);
     addMessage("assistant", "I could not complete that request. " + err.message);
     setStatus("Error: " + err.message, "error");
   } finally {
@@ -215,6 +254,10 @@ async function submitPrompt() {
 async function deployWebsite() {
   if (!currentProjectId || isWorking) {
     setStatus("Create or open a project before deploying.", "error");
+    return;
+  }
+  if (!isDeployableMode(currentMode)) {
+    setStatus("Deploy is currently available for frontend-only projects. Full-stack deployment is planned for a future release.", "error");
     return;
   }
 
@@ -294,17 +337,85 @@ function fallbackMessages(project) {
   ];
 }
 
-function addMessage(role, content, shouldScroll = true) {
+function addMessage(role, content, shouldScroll = true, showPreviewBtn = false) {
   const conversation = document.getElementById("conversationList");
   const message = document.createElement("div");
   const isUser = role === "user";
   message.className = `message ${isUser ? "user" : "assistant"}`;
+  
+  let bubbleContent = `<div class="message-bubble">
+    <div>${escapeHtml(content)}</div>`;
+  
+  if (showPreviewBtn && !isUser) {
+    bubbleContent += `<button class="preview-btn" onclick="openFullscreenPreview()">📺 View Fullscreen</button>`;
+  }
+  
+  bubbleContent += `</div>`;
+  
   message.innerHTML = `
     <div class="message-avatar">${isUser ? "U" : "AI"}</div>
-    <div class="message-bubble">${escapeHtml(content)}</div>
+    ${bubbleContent}
   `;
   conversation.appendChild(message);
   if (shouldScroll) scrollWorkspaceToBottom();
+}
+
+function openFullscreenPreview() {
+  if (!currentHTML) {
+    alert("No preview available");
+    return;
+  }
+  const modal = document.getElementById("fullscreenPreviewModal");
+  const iframe = document.getElementById("fullscreenPreviewFrame");
+  
+  const blob = new Blob([currentHTML], { type: "text/html" });
+  const blobUrl = URL.createObjectURL(blob);
+  iframe.src = blobUrl;
+  
+  modal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeFullscreenPreview() {
+  const modal = document.getElementById("fullscreenPreviewModal");
+  modal.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeFullscreenPreview();
+});
+
+let streamingMessageElement = null;
+
+function showStreamingMessage(text) {
+  const conversation = document.getElementById("conversationList");
+  const message = document.createElement("div");
+  message.className = "message assistant";
+  message.id = "streaming-message-" + Date.now();
+  
+  message.innerHTML = `
+    <div class="message-avatar">AI</div>
+    <div class="message-bubble streaming">
+      <div class="streaming-content">
+        <span>${escapeHtml(text)}</span>
+        <div class="streaming-dots">
+          <div class="streaming-dot"></div>
+          <div class="streaming-dot"></div>
+          <div class="streaming-dot"></div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  conversation.appendChild(message);
+  scrollWorkspaceToBottom();
+  return message.id;
+}
+
+function removeStreamingMessage(msgId) {
+  const msg = document.getElementById(msgId);
+  if (msg) msg.remove();
 }
 
 function setDeployedUrl(url) {
@@ -396,8 +507,64 @@ function showUpgradeBanner() {
 
 function setControlsBusy(state) {
   document.getElementById("sendBtn").disabled = state;
-  document.getElementById("deployBtn").disabled = state || !currentProjectId;
+  document.getElementById("deployBtn").disabled = state || !currentProjectId || !isDeployableMode(currentMode);
   document.getElementById("promptInput").disabled = state;
+}
+
+function renderArtifactPanel(artifact) {
+  const panel = document.getElementById("artifactPanel");
+  if (!artifact) {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  const shouldShow = artifact.mode !== "frontend_only" || artifact.apiSpec?.length;
+  if (!shouldShow) {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  document.getElementById("artifactSummary").textContent = artifact.summary || "Generated project artifact";
+  document.getElementById("artifactMode").textContent = formatMode(artifact.mode);
+  document.getElementById("artifactFiles").innerHTML = renderFileItems(artifact.files || []);
+  document.getElementById("artifactApi").innerHTML = renderApiItems(artifact.apiSpec || []);
+  document.getElementById("artifactChecks").innerHTML = renderCheckItems(artifact.integrationChecks || []);
+  panel.classList.remove("hidden");
+}
+
+function renderFileItems(files) {
+  if (!files.length) return `<li>No generated files listed.</li>`;
+  return files.map(file => `
+    <li><strong>${escapeHtml(file.file_type || "file")}</strong> ${escapeHtml(file.path)} ${file.size ? `(${formatBytes(file.size)})` : ""}</li>
+  `).join("");
+}
+
+function renderApiItems(apiSpec) {
+  if (!apiSpec.length) return `<li>No API endpoints for this project.</li>`;
+  return apiSpec.map(endpoint => `
+    <li><strong>${escapeHtml(endpoint.method)} ${escapeHtml(endpoint.path)}</strong> ${escapeHtml(endpoint.purpose || "")}</li>
+  `).join("");
+}
+
+function renderCheckItems(checks) {
+  if (!checks.length) return `<li>No integration checks reported.</li>`;
+  return checks.slice(0, 8).map(check => {
+    const status = check.status === "pass" ? "pass" : "warn";
+    return `<li><strong class="check-${status}">${escapeHtml(status.toUpperCase())}</strong> ${escapeHtml(check.name || "Check")}</li>`;
+  }).join("");
+}
+
+function isDeployableMode(mode) {
+  return (mode || "frontend_only") === "frontend_only";
+}
+
+function formatMode(mode) {
+  return String(mode || "frontend_only").replace(/_/g, " ");
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${Math.round(bytes / 1024)} KB`;
 }
 
 function setStatus(message, type) {

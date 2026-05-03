@@ -65,6 +65,9 @@ async function doDeploy(res, userId, projectId) {
       [projectId, userId]
     );
     if (!project) throw new Error("Project not found");
+    if ((project.mode || "frontend_only") !== "frontend_only") {
+      throw new Error("Deployment is currently available for frontend-only projects. Full-stack deployment is planned for a future release.");
+    }
 
     console.log("Deploying:", project.name, "| HTML length:", project.html.length);
 

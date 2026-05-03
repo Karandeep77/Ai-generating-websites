@@ -9,7 +9,7 @@ router.use(requireAuth);
 // ── GET ALL PROJECTS for logged in user ───────────────────────────────
 router.get("/", (req, res) => {
   db.all(
-    `SELECT id, name, prompt, deployed_url, created_at, updated_at
+    `SELECT id, name, prompt, deployed_url, mode, summary, created_at, updated_at
      FROM projects
      WHERE user_id = ?
      ORDER BY updated_at DESC`,
@@ -43,7 +43,30 @@ router.get("/:id", (req, res) => {
             console.error("Fetch project messages error:", msgErr.message);
             return res.status(500).json({ error: "Failed to fetch project messages" });
           }
-          res.json({ success: true, project: row, messages: messages || [] });
+          db.all(
+            `SELECT path, file_type, content, updated_at
+             FROM project_files
+             WHERE project_id = ? AND user_id = ?
+             ORDER BY id ASC`,
+            [req.params.id, req.user.id],
+            (fileErr, files) => {
+              if (fileErr) {
+                console.error("Fetch project files error:", fileErr.message);
+                return res.status(500).json({ error: "Failed to fetch project files" });
+              }
+
+              res.json({
+                success: true,
+                project: {
+                  ...row,
+                  apiSpec: parseJson(row.api_spec, []),
+                  integrationChecks: parseJson(row.integration_checks, []),
+                },
+                messages: messages || [],
+                files: files || [],
+              });
+            }
+          );
         }
       );
     }
@@ -73,9 +96,19 @@ router.delete("/:id", (req, res) => {
     [req.params.id, req.user.id],
     (err) => {
       if (err) return res.status(500).json({ error: "Failed to delete" });
+      db.run(`DELETE FROM project_files WHERE project_id = ? AND user_id = ?`, [req.params.id, req.user.id], () => {});
+      db.run(`DELETE FROM project_messages WHERE project_id = ? AND user_id = ?`, [req.params.id, req.user.id], () => {});
       res.json({ success: true });
     }
   );
 });
 
 module.exports = router;
+
+function parseJson(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
