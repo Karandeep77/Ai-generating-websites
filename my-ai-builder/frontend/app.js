@@ -418,6 +418,104 @@ function removeStreamingMessage(msgId) {
   if (msg) msg.remove();
 }
 
+function openCodeViewer() {
+  if (!currentFiles || !currentFiles.length) {
+    alert("No backend files available to view");
+    return;
+  }
+
+  const modal = document.getElementById("codeViewerModal");
+  const fileList = document.getElementById("codeFileList");
+  const codeViewer = document.getElementById("codeViewer");
+
+  // Filter to show only backend files
+  const backendFiles = currentFiles.filter(f => 
+    f.file_type === "backend" || 
+    f.path.startsWith("backend/") ||
+    f.file_type === "database" ||
+    f.file_type === "config"
+  );
+
+  if (!backendFiles.length) {
+    alert("No backend files in this project");
+    return;
+  }
+
+  // Create file list
+  fileList.innerHTML = backendFiles.map((file, idx) => `
+    <button class="code-file-item ${idx === 0 ? 'active' : ''}" onclick="selectCodeFile(${idx})">
+      ${escapeHtml(file.path)}
+    </button>
+  `).join("");
+
+  // Show first file
+  displayCodeFile(backendFiles, 0);
+
+  modal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function selectCodeFile(idx) {
+  const backendFiles = currentFiles.filter(f => 
+    f.file_type === "backend" || 
+    f.path.startsWith("backend/") ||
+    f.file_type === "database" ||
+    f.file_type === "config"
+  );
+
+  document.querySelectorAll(".code-file-item").forEach((btn, i) => {
+    btn.classList.toggle("active", i === idx);
+  });
+
+  displayCodeFile(backendFiles, idx);
+}
+
+function displayCodeFile(files, idx) {
+  const file = files[idx];
+  const codeViewer = document.getElementById("codeViewer");
+
+  codeViewer.innerHTML = `
+    <div class="code-header">${escapeHtml(file.path)}</div>
+    <div class="code-content">${escapeHtml(file.content || "")}</div>
+  `;
+}
+
+function closeCodeViewer() {
+  const modal = document.getElementById("codeViewerModal");
+  modal.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+function downloadBackendZip() {
+  if (!currentProjectId) {
+    alert("No project selected");
+    return;
+  }
+
+  const backendFiles = currentFiles.filter(f => 
+    f.file_type === "backend" || 
+    f.path.startsWith("backend/") ||
+    f.file_type === "database" ||
+    f.file_type === "config"
+  );
+
+  if (!backendFiles.length) {
+    alert("No backend files to download");
+    return;
+  }
+
+  // For now, show instructions to copy files manually
+  // In future, we can use JSZip to create actual ZIP
+  alert(`Backend files ready to download!\n\nCopy these ${backendFiles.length} files to create your backend folder.\n\nSetup:\n1. Create a folder called 'backend'\n2. Copy all files into it\n3. Run: npm install\n4. Create .env file from .env.example\n5. Run: node server.js`);
+}
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeCodeViewer();
+    closeFullscreenPreview();
+  }
+});
+
 function setDeployedUrl(url) {
   const card = document.getElementById("deployedUrlCard");
   const link = document.getElementById("deployedUrlLink");
@@ -529,6 +627,21 @@ function renderArtifactPanel(artifact) {
   document.getElementById("artifactFiles").innerHTML = renderFileItems(artifact.files || []);
   document.getElementById("artifactApi").innerHTML = renderApiItems(artifact.apiSpec || []);
   document.getElementById("artifactChecks").innerHTML = renderCheckItems(artifact.integrationChecks || []);
+  
+  // Show code button only for backend/full-stack projects
+  const codeBtn = document.getElementById("viewCodeBtn");
+  const hasBackendFiles = (artifact.files || []).some(f => 
+    f.file_type === "backend" || 
+    f.path.startsWith("backend/") ||
+    f.file_type === "database" ||
+    f.file_type === "config"
+  );
+  if (hasBackendFiles) {
+    codeBtn.style.display = "block";
+  } else {
+    codeBtn.style.display = "none";
+  }
+  
   panel.classList.remove("hidden");
 }
 

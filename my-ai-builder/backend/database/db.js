@@ -208,4 +208,29 @@ async function createDefaultAdmin() {
   });
 }
 
+// Create test user for development
+async function createTestUser() {
+  const testEmail = "test@test.com";
+  const testPassword = "123456";
+
+  db.get(`SELECT id FROM users WHERE email = ?`, [testEmail], async (err, row) => {
+    if (row) { 
+      console.log("Test user exists ✓");
+      return;
+    }
+    const hash = await bcrypt.hash(testPassword, 10);
+    db.run(
+      `INSERT INTO users (name, email, password, role, plan) VALUES (?, ?, ?, ?, ?)`,
+      ["Test User", testEmail, hash, "admin", "agency"],
+      (err) => {
+        if (!err) console.log(`Test user created: ${testEmail} (admin with unlimited access)`);
+        else console.error("Could not create test user:", err.message);
+      }
+    );
+  });
+}
+
+// Create test user on startup
+createTestUser();
+
 module.exports = db;
